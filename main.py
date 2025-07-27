@@ -1,3 +1,5 @@
+import os
+
 from gmail_client import get_latest_email_from
 from gpt_agent import gpt_classify_issue
 from jira_client import create_jira_ticket
@@ -7,7 +9,12 @@ from logger_setup import logger
 def main():
     logger.info("g-ai-j started")
 
-    email = get_latest_email_from("oleh@get-code.net")
+    sender = os.getenv("EMAIL_SENDER")
+    if not sender:
+        logger.error("EMAIL_SENDER environment variable not set")
+        return
+
+    email = get_latest_email_from(sender)
     if not email:
         logger.warning("No email found from the specified sender.")
         return

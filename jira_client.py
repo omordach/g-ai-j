@@ -11,6 +11,11 @@ PROJECT_KEY = os.getenv("JIRA_PROJECT_KEY")
 ASSIGNEE = os.getenv("JIRA_USER")
 CLIENT_FIELD_ID = os.getenv("JIRA_CLIENT_FIELD_ID")
 
+REQUIRED_ENV_VARS = ["JIRA_URL", "JIRA_PROJECT_KEY", "JIRA_USER", "JIRA_API_TOKEN", "JIRA_CLIENT_FIELD_ID"]
+missing = [var for var in REQUIRED_ENV_VARS if not os.getenv(var)]
+if missing:
+    raise EnvironmentError(f"Missing environment variables: {', '.join(missing)}")
+
 
 def build_jira_description(body, gpt_data):
     content_blocks = []
@@ -54,8 +59,21 @@ def create_jira_ticket(summary, body, issue_type, client, gpt_data, attachments=
         }
     }
 
-    response = requests.post(url, auth=auth, headers=headers, json=payload)
-    if response.status_code == 201:
-        logger.info(f"Jira ticket created: {response.json()['key']}")
-    else:
-        logger.error(f"Failed to create Jira ticket: {response.status_code} {response.text}")
+    try:
+        response = requests.post(
+            url,
+            auth=auth,
+            headers=headers,
+            json=payload,
+            timeout=10
+        )
+        if response.status_code == 201:
+            logger.info("Jira ticket created: %s", response.json().get("key"))
+        else:
+            logger.error(
+                "Failed to create Jira ticket: %s %s",
+                response.status_code,
+                response.text,
+            )
+    except requests.RequestException as exc:
+        logger.error("Request to Jira failed: %s", exc)
