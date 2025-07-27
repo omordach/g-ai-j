@@ -1,0 +1,59 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.so
+
+# Virtual environments
+venv/
+.env/
+.envrc
+
+# VS Code
+.vscode/
+
+# Logs
+*.log
+logs/
+*.log.*
+
+# Jupyter
+.ipynb_checkpoints/
+
+# macOS
+.DS_Store
+
+# Linux
+*.swp
+
+# Credentials & Tokens
+token.json
+client_secret.json
+
+# dotenv files
+.env
+.env.*
+
+# Output
+*.out
+
+# Pytest
+.pytest_cache/
+
+# mypy
+.mypy_cache/
+
+# coverage
+htmlcov/
+coverage.xml
+*.cover
+.cache
+
+# GitHub Copilot
+copilot_logs/
+
+# __generated__ or build artifacts
+build/
+dist/
+*.egg-info/
