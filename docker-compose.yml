@@ -9,9 +9,5 @@ services:
       - .env
     volumes:
       - ./token.json:/app/token.json:ro
-      - ./client_secret.json:/app/client_secret.json:ro
-      - app-data:/data
+      - ./logs:/data
     command: python main.py
-
-volumes:
-  app-data:
