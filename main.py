@@ -22,7 +22,7 @@ def main():
     logger.info(f"Processing email: {email['subject']}")
     gpt_data = gpt_classify_issue(email['subject'], email['body'])
 
-    if not gpt_data.get("issueType"):
+    if not gpt_data or not gpt_data.get("issueType"):
         logger.error("GPT could not classify the issue. Skipping ticket creation.")
         return
 
