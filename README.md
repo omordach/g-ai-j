@@ -18,3 +18,41 @@ root.
 
 Install the requirements and run `python main.py` to process the latest email
 from the configured sender.
+
+## Running with Docker
+
+Build the image:
+
+```bash
+docker build -t g-ai-j .
+```
+
+Run the container, providing the required environment variables and mounting the
+`token.json` file into the container:
+
+```bash
+docker run --rm \
+  -e OPENAI_API_KEY=... \
+  -e EMAIL_SENDER=... \
+  -e JIRA_URL=... \
+  -e JIRA_PROJECT_KEY=... \
+  -e JIRA_USER=... \
+  -e JIRA_API_TOKEN=... \
+  -e JIRA_CLIENT_FIELD_ID=... \
+  -v $(pwd)/token.json:/app/token.json \
+  g-ai-j
+```
+
+### Running with docker-compose
+
+If you prefer using `docker-compose`, ensure a `docker-compose.yml` file is
+present and then run:
+
+```bash
+docker-compose up
+```
+
+`docker-compose` will read variables from a `.env` file in the same directory,
+allowing you to store the required environment variables there. Mount the
+`token.json` file as a volume in the compose file so the container can access it.
+
