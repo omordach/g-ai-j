@@ -9,8 +9,8 @@ logger.setLevel(logging.INFO)
 ch = logging.StreamHandler()
 ch.setLevel(logging.INFO)
 
-# File handler
-fh = logging.FileHandler("g-ai-j.log", encoding='utf-8')
+# File handler writing to mounted volume
+fh = logging.FileHandler("/data/g-ai-j.log", encoding='utf-8')
 fh.setLevel(logging.INFO)
 
 # Formatter
