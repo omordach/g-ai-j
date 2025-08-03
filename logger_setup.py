@@ -19,6 +19,6 @@ ch.setFormatter(formatter)
 fh.setFormatter(formatter)
 
 # Avoid adding handlers multiple times
-if not logger.hasHandlers():
+if not logger.handlers:
     logger.addHandler(ch)
     logger.addHandler(fh)
