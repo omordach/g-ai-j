@@ -53,6 +53,8 @@ docker-compose up
 ```
 
 `docker-compose` will read variables from a `.env` file in the same directory,
-allowing you to store the required environment variables there. Mount the
-`token.json` file as a volume in the compose file so the container can access it.
+allowing you to store the required environment variables there. Copy
+`.env.example` to `.env` and fill in the values before running `docker-compose`
+up. Mount the `token.json` file as a volume in the compose file so the container
+can access it.
 
