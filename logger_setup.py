@@ -1,24 +1,23 @@
-# logger_setup.py
+"""Application logging setup.
+
+This configuration logs messages to STDOUT so that container orchestrators can
+collect log output without relying on a file inside the container.
+"""
 
 import logging
+import sys
 
 logger = logging.getLogger("g-ai-j")
 logger.setLevel(logging.INFO)
 
-# Console handler
-ch = logging.StreamHandler()
-ch.setLevel(logging.INFO)
-
-# File handler
-fh = logging.FileHandler("g-ai-j.log", encoding='utf-8')
-fh.setLevel(logging.INFO)
+# Stream handler that writes to STDOUT
+handler = logging.StreamHandler(sys.stdout)
+handler.setLevel(logging.INFO)
 
 # Formatter
-formatter = logging.Formatter('%(asctime)s [%(levelname)s] %(message)s')
-ch.setFormatter(formatter)
-fh.setFormatter(formatter)
+formatter = logging.Formatter("%(asctime)s [%(levelname)s] %(message)s")
+handler.setFormatter(formatter)
 
 # Avoid adding handlers multiple times
 if not logger.hasHandlers():
-    logger.addHandler(ch)
-    logger.addHandler(fh)
+    logger.addHandler(handler)
