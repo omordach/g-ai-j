@@ -6,7 +6,9 @@ from flask import Flask, request
 import firestore_state
 import gmail_client
 import jira_client
+
 from gpt_agent import gpt_classify_issue
+
 from logger_setup import logger
 
 app = Flask(__name__)
@@ -31,6 +33,7 @@ def process_message(message_id: str) -> None:
         logger.info("Sender %s not allowed", sender)
         return
 
+
     classification = gpt_classify_issue(msg.get("subject", ""), msg.get("body_text", ""))
     issue_type = classification.get("issueType", "Task") if classification else "Task"
     client = classification.get("client", "N/A") if classification else "N/A"
@@ -48,6 +51,7 @@ def process_message(message_id: str) -> None:
         issue_type=issue_type,
         labels=labels,
     )
+
     if key:
         firestore_state.mark_processed(message_id)
 

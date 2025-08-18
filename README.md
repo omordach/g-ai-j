@@ -15,6 +15,7 @@ Utility that turns Gmail messages into Jira tickets. In addition to the original
 | `logger_setup.py` | Configures logging to stdout. |
 | `gpt_agent.py` | Uses OpenAI to classify emails and infer client names. |
 
+
 ## Running locally
 
 1. Install dependencies and configure environment variables in `.env` (see below).
@@ -44,7 +45,9 @@ Utility that turns Gmail messages into Jira tickets. In addition to the original
    ```
    Re-run periodically (e.g. via Cloud Scheduler) to renew the watch before expiration.
 
+
 When Gmail pushes a notification to Pub/Sub, `app.py` retrieves new messages, asks GPT to classify the issue and determine the client from the email body, creates Jira tickets, and records processed message IDs in Firestore to avoid duplicates.
+
 
 ## Required environment variables
 
@@ -63,6 +66,7 @@ DOMAIN_TO_CLIENT_JSON={"example.com":"Example"}
 CLIENT_LIST_JSON=["Example","N/A"]
 ALLOWED_SENDERS_JSON=["forwarder@example.com"]
 OPENAI_API_KEY=...
+
 ```
 
 ## Docker
