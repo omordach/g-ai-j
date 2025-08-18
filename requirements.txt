@@ -1,7 +1,10 @@
-google-api-python-client
-google-auth-httplib2
-google-auth-oauthlib
-openai
-requests
-python-dotenv
-beautifulsoup4
+Flask==3.*
+gunicorn==21.*
+google-api-python-client==2.*
+google-auth==2.*
+google-auth-oauthlib==1.*
+google-cloud-firestore==2.*
+requests==2.*
+beautifulsoup4==4.*
+python-dotenv==1.*
+openai==1.*
