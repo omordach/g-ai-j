@@ -1,11 +1,15 @@
 import base64
 import os
+from typing import Dict, List
+
+from bs4 import BeautifulSoup
 from google.oauth2.credentials import Credentials
 from googleapiclient.discovery import build
-from bs4 import BeautifulSoup
+
 from logger_setup import logger
 
 SCOPES = ["https://www.googleapis.com/auth/gmail.readonly"]
+
 
 def get_gmail_service():
     token_path = "token.json"
@@ -16,23 +20,76 @@ def get_gmail_service():
     creds = Credentials.from_authorized_user_file(token_path, SCOPES)
     return build("gmail", "v1", credentials=creds)
 
-def extract_body(payload):
-    """Recursively extracts email body text from payload"""
-    if 'parts' in payload:
-        for part in payload['parts']:
+
+def extract_body(payload: Dict) -> str:
+    """Recursively extracts email body text from payload."""
+    mime_type = payload.get("mimeType", "")
+    body_data = payload.get("body", {}).get("data")
+
+    if mime_type.startswith("multipart"):
+        for part in payload.get("parts", []):
             text = extract_body(part)
             if text:
                 return text
-    else:
-        mime_type = payload.get('mimeType')
-        data = payload.get('body', {}).get('data')
-        if data:
-            decoded = base64.urlsafe_b64decode(data).decode("utf-8")
-            if mime_type == 'text/plain':
-                return decoded.strip()
-            elif mime_type == 'text/html':
-                return BeautifulSoup(decoded, "html.parser").get_text().strip()
+    elif body_data:
+        decoded = base64.urlsafe_b64decode(body_data).decode("utf-8", errors="ignore")
+        if mime_type == "text/plain":
+            return decoded.strip()
+        if mime_type == "text/html":
+            return BeautifulSoup(decoded, "html.parser").get_text().strip()
     return ""
+
+
+def extract_headers(headers: List[Dict]) -> Dict[str, str]:
+    desired = {"From": "", "Subject": "", "Date": "", "Message-Id": ""}
+    for header in headers:
+        name = header.get("name")
+        if name in desired:
+            desired[name] = header.get("value", "")
+    return desired
+
+
+def list_new_message_ids_since(start_history_id: int, end_history_id: int) -> List[str]:
+    """Return unique message IDs added between history IDs."""
+    service = get_gmail_service()
+    user_id = os.getenv("GMAIL_USER_ID", "me")
+    msg_ids = set()
+    page_token = None
+    while True:
+        req = {
+            "userId": user_id,
+            "startHistoryId": start_history_id,
+            "historyTypes": ["messageAdded"],
+        }
+        if page_token:
+            req["pageToken"] = page_token
+        resp = service.users().history().list(**req).execute()
+        for history in resp.get("history", []):
+            for added in history.get("messagesAdded", []):
+                msg_ids.add(added.get("message", {}).get("id"))
+        page_token = resp.get("nextPageToken")
+        if not page_token:
+            break
+    return list(msg_ids)
+
+
+def get_message(message_id: str, format: str = "full") -> Dict[str, str]:
+    """Return parsed details for a Gmail message."""
+    service = get_gmail_service()
+    user_id = os.getenv("GMAIL_USER_ID", "me")
+    msg = service.users().messages().get(userId=user_id, id=message_id, format=format).execute()
+    payload = msg.get("payload", {})
+    headers = extract_headers(payload.get("headers", []))
+    body_text = extract_body(payload)
+
+    return {
+        "from": headers.get("From"),
+        "subject": headers.get("Subject"),
+        "date": headers.get("Date"),
+        "message_id": headers.get("Message-Id"),
+        "body_text": body_text,
+    }
+
 
 def get_latest_email_from(sender):
     service = get_gmail_service()
