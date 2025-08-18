@@ -1,107 +1,73 @@
 # g-ai-j
 
-## Overview
+Utility that turns Gmail messages into Jira tickets. In addition to the original one-shot script, the application now supports real-time processing on Google Cloud Run using Gmail push notifications delivered via Pub/Sub and Firestore for deduplication.
 
-`g-ai-j` fetches the latest email from a Gmail inbox, classifies the message using OpenAI, then creates a matching ticket in Jira. The application is composed of small modules and logs to both the console and a log file.
-
-### Processing flow
-1. **Gmail** – retrieve the most recent message from a specified sender.
-2. **GPT classification** – send the subject and body to OpenAI to determine the issue type and client.
-3. **Jira** – create a ticket with the email details and the data returned by GPT.
-
-## Code structure
+## Components
 
 | File | Purpose |
-| ---- | ------- |
-| `main.py` | Orchestrates the whole workflow: reads configuration, fetches the email, calls GPT, and finally creates the Jira ticket. |
-| `gmail_client.py` | Wraps the Gmail API. Loads credentials from `token.json`, retrieves the latest message from the configured sender and extracts its plain text or HTML body. |
-| `gpt_agent.py` | Uses the OpenAI Chat Completions API to classify the email into an issue type (`Bug`, `Task`, or `Story`) and to guess the client based on the email content. |
-| `jira_client.py` | Builds the Atlassian Document Format (ADF) description and sends a REST request to create an issue in Jira using the required custom client field. |
-| `logger_setup.py` | Configures logging so that messages go to STDOUT and to `/data/g-ai-j.log`. Ensure the `/data` directory exists in the runtime environment. |
-
-## Configuration
-
-Set the following environment variables (for local runs they can be placed in a `.env` file):
-
-* `OPENAI_API_KEY` – key for the OpenAI API.
-* `EMAIL_SENDER` – Gmail address from which to pull messages.
-* `JIRA_URL` – base URL of the Jira instance.
-* `JIRA_PROJECT_KEY` – key of the Jira project.
-* `JIRA_USER` – Jira username.
-* `JIRA_API_TOKEN` – Jira API token.
-* `JIRA_CLIENT_FIELD_ID` – custom field ID that stores the client value.
-
-A `token.json` file containing Gmail OAuth credentials must reside in the project root.
+| --- | --- |
+| `app.py` | Flask service for Cloud Run. Handles `/healthz` and `/pubsub` endpoints. |
+| `gmail_client.py` | Wrapper around Gmail API. Fetches messages and lists history updates. |
+| `jira_client.py` | Creates Jira issues with ADF descriptions and client custom field. |
+| `firestore_state.py` | Persists last processed history ID and recent message IDs in Firestore. |
+| `gmail_watch.py` | Helper script to register or renew Gmail `users.watch`. |
+| `main.py` | Legacy one-shot runner for manual local tests. |
+| `logger_setup.py` | Configures logging to stdout. |
 
 ## Running locally
 
-1. Ensure Python 3.11 is installed.
-2. Copy `.env.example` to `.env` and fill in the values above.
-3. Place `token.json` in the project root.
-4. Install dependencies:
-
+1. Install dependencies and configure environment variables in `.env` (see below).
+2. Obtain Gmail OAuth credentials and save as `token.json` in the project root.
+3. Run the one-shot script:
    ```bash
-   pip install -r requirements.txt
-   ```
-
-5. Create a directory for logs and run the app:
-
-   ```bash
-   mkdir -p data
    python main.py
    ```
 
-The application processes the most recent email from `EMAIL_SENDER` and writes a log file to `/data/g-ai-j.log`.
+## Cloud Run deployment
 
-## Running with Docker
-
-### Build
-
-```bash
-docker build -t g-ai-j .
-```
-
-### Run
-
-```bash
-docker run --rm \
-  -e OPENAI_API_KEY=... \
-  -e EMAIL_SENDER=... \
-  -e JIRA_URL=... \
-  -e JIRA_PROJECT_KEY=... \
-  -e JIRA_USER=... \
-  -e JIRA_API_TOKEN=... \
-  -e JIRA_CLIENT_FIELD_ID=... \
-  -v $(pwd)/token.json:/app/token.json:ro \
-  -v $(pwd)/logs:/data \
-  g-ai-j
-```
-
-### docker-compose
-
-```bash
-cp .env.example .env  # fill in values
-docker-compose up
-```
-
-The compose file mounts `token.json` and a local `logs` directory to `/data` inside the container.
-
-## Deploying to GCP Cloud Run
-
-1. **Build and push the image**
-
+1. **Build image**
    ```bash
    gcloud builds submit --tag gcr.io/PROJECT_ID/g-ai-j
    ```
-
-2. **Deploy**
-
+2. **Deploy service**
    ```bash
    gcloud run deploy g-ai-j \
      --image gcr.io/PROJECT_ID/g-ai-j \
-     --set-env-vars OPENAI_API_KEY=...,EMAIL_SENDER=...,JIRA_URL=...,JIRA_PROJECT_KEY=...,JIRA_USER=...,JIRA_API_TOKEN=...,JIRA_CLIENT_FIELD_ID=... \
-     --set-secrets token.json=TOKEN_JSON:latest \
-     --region REGION
+     --region REGION \
+     --set-env-vars $(cat .env | xargs)
    ```
+3. **Create Pub/Sub topic and push subscription** targeting the Cloud Run URL.
+4. **Register Gmail watch** using the helper script:
+   ```bash
+   python gmail_watch.py
+   ```
+   Re-run periodically (e.g. via Cloud Scheduler) to renew the watch before expiration.
 
-   Store the Gmail `token.json` in Secret Manager as `TOKEN_JSON` and mount it at `/app/token.json` via `--set-secrets`. Cloud Run writes logs to STDOUT; the file log in `/data` is optional.
+When Gmail pushes a notification to Pub/Sub, `app.py` retrieves new messages, creates Jira tickets, and records processed message IDs in Firestore to avoid duplicates.
+
+## Required environment variables
+
+```
+GCP_PROJECT_ID=...
+GCP_FIRESTORE_COLLECTION=gaij_state
+PUBSUB_TOPIC=gmail-notifications
+GMAIL_USER_ID=me
+JIRA_URL=...
+JIRA_USER=...
+JIRA_API_TOKEN=...
+JIRA_PROJECT_KEY=...
+JIRA_ASSIGNEE=...
+JIRA_CLIENT_FIELD_ID=...
+DOMAIN_TO_CLIENT_JSON={"example.com":"Example"}
+CLIENT_LIST_JSON=["Example","N/A"]
+ALLOWED_SENDERS_JSON=["forwarder@example.com"]
+```
+
+## Docker
+
+```
+docker build -t g-ai-j .
+docker run --rm -p 8080:8080 g-ai-j
+```
+
+Cloud Run reads logs from stdout; the application does not write to local files.
