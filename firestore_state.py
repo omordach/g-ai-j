@@ -7,22 +7,33 @@ from logger_setup import logger
 PROJECT_ID = os.getenv("GCP_PROJECT_ID")
 COLLECTION = os.getenv("GCP_FIRESTORE_COLLECTION", "gaij_state")
 
-_client = firestore.Client(project=PROJECT_ID)
-_collection = _client.collection(COLLECTION)
+# Lazily initialize the Firestore client so tests can provide fakes without
+# needing real GCP credentials at import time.
+_client = None
+_collection = None
+
+
+def _get_collection():
+    """Return the Firestore collection, creating the client on first use."""
+    global _client, _collection
+    if _collection is None:
+        _client = firestore.Client(project=PROJECT_ID)
+        _collection = _client.collection(COLLECTION)
+    return _collection
 
 _MAX_STORED_IDS = 5000
 
 
 def _processed_doc():
-    return _collection.document("processed")
+    return _get_collection().document("processed")
 
 
 def _runtime_doc():
-    return _collection.document("runtime")
+    return _get_collection().document("runtime")
 
 
 def _config_doc():
-    return _collection.document("config").collection("watch").document("current")
+    return _get_collection().document("config").collection("watch").document("current")
 
 
 def get_last_history_id() -> Optional[int]:
