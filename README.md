@@ -77,3 +77,29 @@ docker run --rm -p 8080:8080 g-ai-j
 ```
 
 Cloud Run reads logs from stdout; the application does not write to local files.
+
+## Continuous Integration / Deployment
+
+This repository includes a GitHub Actions workflow that runs the test suite on
+every push and pull request. Pushes to the `main` branch will deploy the
+application to Cloud Run after tests pass.
+
+### GitHub configuration
+
+Store the following secrets in your repository settings:
+
+| Secret | Purpose |
+| --- | --- |
+| `GCP_PROJECT_ID` | Google Cloud project that hosts Cloud Run |
+| `GCP_REGION` | Region for the Cloud Run service (e.g. `us-central1`) |
+| `CLOUD_RUN_SERVICE` | Name of the Cloud Run service |
+| `GCP_SA_KEY` | JSON key for a service account used for deployment |
+
+### Google Cloud configuration
+
+1. Create a service account and download a JSON key. Grant it **Cloud Run
+   Admin**, **Service Account User**, and **Cloud Build Editor** roles.
+2. Enable the Cloud Run and Cloud Build APIs.
+3. Pre-create the Cloud Run service or allow the workflow to create it on the
+   first deploy. Configure required environment variables in Cloud Run.
+
