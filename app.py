@@ -87,13 +87,20 @@ def pubsub_handler():
         return "", 204
 
     message_ids = gmail_client.list_new_message_ids_since(last_history_id, history_id)
+    all_processed = True
     for mid in message_ids:
         try:
             process_message(mid)
         except Exception as exc:
+            all_processed = False
             logger.error("Error processing message %s: %s", mid, exc)
 
-    firestore_state.set_last_history_id(history_id)
+    if all_processed:
+        firestore_state.set_last_history_id(history_id)
+    else:
+        logger.error(
+            "Failed to process all messages for historyId %s", history_id
+        )
     return "", 204
 
 

@@ -1,5 +1,6 @@
 import base64
 import json
+import logging
 
 
 def test_pubsub_happy_path(app_setup, pubsub_envelope, monkeypatch):
@@ -130,3 +131,29 @@ def test_pubsub_non_numeric_history_id(app_setup, monkeypatch):
     assert res.status_code == 204
     assert listed["called"] is False
     assert fs.get_last_history_id() is None
+
+
+def test_pubsub_processing_failure(app_setup, pubsub_envelope, monkeypatch, caplog):
+    client = app_setup["client"]
+    fs = app_setup["firestore_state"]
+    gmail_client = app_setup["gmail_client"]
+    app_module = app_setup["app"]
+
+    monkeypatch.setattr(
+        gmail_client, "list_new_message_ids_since", lambda s, e: ["A1"]
+    )
+
+    def fail_process(mid):
+        raise RuntimeError("boom")
+
+    monkeypatch.setattr(app_module, "process_message", fail_process)
+
+    with caplog.at_level(logging.ERROR):
+        res = client.post("/pubsub", json=pubsub_envelope)
+
+    assert res.status_code == 204
+    assert fs.get_last_history_id() is None
+    assert any(
+        "Failed to process all messages for historyId" in r.message
+        for r in caplog.records
+    )
