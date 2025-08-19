@@ -1,9 +1,10 @@
-name: Test and Deploy
+name: Test and Deploy to Cloud Run
 
 on:
   push:
-    branches: ["main"]
+    branches: ['main']
   pull_request:
+  workflow_dispatch: {}
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -48,9 +49,9 @@ jobs:
       - name: Deploy to Cloud Run (build from source)
         uses: google-github-actions/deploy-cloudrun@v2
         with:
-          service: ${{ secrets.CLOUD_RUN_SERVICE }}
-          region:  ${{ secrets.GCP_REGION }}
-          project_id: ${{ secrets.GCP_PROJECT_ID }}
+          service:    ${{ secrets.CLOUD_RUN_SERVICE }}    # e.g. g-ai-j
+          region:     ${{ secrets.GCP_REGION }}           # e.g. europe-central2
+          project_id: ${{ secrets.GCP_PROJECT_ID }}       # e.g. gmail-ai-jira
           source: .
           flags: >
             --service-account=${{ secrets.RUNTIME_SA }}
