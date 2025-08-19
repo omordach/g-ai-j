@@ -5,33 +5,62 @@ on:
     branches: ["main"]
   pull_request:
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   test:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-      - run: pip install -r requirements.txt
-      - run: pip install pytest
-      - run: pytest
+          cache: 'pip'
+          cache-dependency-path: |
+            requirements.txt
+
+      - name: Install deps
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pytest
+
+      - name: Run tests
+        run: pytest -q
 
   deploy:
     needs: test
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
+    permissions:
+      contents: 'read'
+      id-token: 'write'   # needed if you switch to Workload Identity Federation
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
+
+      # Auth (JSON key). If you can, switch to workload identity (keyless).
       - uses: google-github-actions/auth@v2
         with:
           credentials_json: '${{ secrets.GCP_SA_KEY }}'
+          # For keyless, replace with:
+          # workload_identity_provider: ${{ secrets.WIF_PROVIDER }}
+          # service_account: ${{ secrets.DEPLOYER_SA }}
+
+      # Deploy from source using Cloud Build -> Cloud Run
       - uses: google-github-actions/deploy-cloudrun@v2
         with:
-          service: ${{ secrets.CLOUD_RUN_SERVICE }}
-          region: ${{ secrets.GCP_REGION }}
-          project_id: ${{ secrets.GCP_PROJECT_ID }}
-          source: .
+          service: ${{ secrets.CLOUD_RUN_SERVICE }}     # e.g. g-ai-j
+          region:  ${{ secrets.GCP_REGION }}            # e.g. europe-central2
+          project_id: ${{ secrets.GCP_PROJECT_ID }}     # e.g. gmail-ai-jira
+          source: .                                     # build from source
+          # Extra flags: service account, secrets, etc.
+          flags: >
+            --service-account=${{ secrets.RUNTIME_SA }}
+            --update-labels=managed-by=github-actions,commit-sha=${{ github.sha }}
+            # Example of injecting Secret Manager values as env:
+            # --set-secrets=DB_PASSWORD=DB_PASSWORD:latest,API_KEY=API_KEY:latest
+            # Example of non-secret env:
+            # --set-env-vars=LOG_LEVEL=info
