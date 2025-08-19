@@ -48,10 +48,11 @@ jobs:
       - name: Deploy to Cloud Run (build from source)
         uses: google-github-actions/deploy-cloudrun@v2
         with:
-          service: ${{ secrets.CLOUD_RUN_SERVICE }}   # e.g. g-ai-j
-          region:  ${{ secrets.GCP_REGION }}          # e.g. europe-central2
-          project_id: ${{ secrets.GCP_PROJECT_ID }}   # e.g. gmail-ai-jira
+          service: ${{ secrets.CLOUD_RUN_SERVICE }}
+          region:  ${{ secrets.GCP_REGION }}
+          project_id: ${{ secrets.GCP_PROJECT_ID }}
           source: .
           flags: >
             --service-account=${{ secrets.RUNTIME_SA }}
+            --build-service-account=${{ secrets.BUILD_SA }}
             --allow-unauthenticated
