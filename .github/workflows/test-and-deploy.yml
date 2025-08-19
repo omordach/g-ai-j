@@ -19,7 +19,7 @@ jobs:
 
   deploy:
     needs: test
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && secrets.GCP_SA_KEY != ''
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
