@@ -5,6 +5,7 @@ from typing import Dict, List
 from bs4 import BeautifulSoup
 from google.oauth2.credentials import Credentials
 from googleapiclient.discovery import build
+from googleapiclient.errors import HttpError
 
 from logger_setup import logger
 
@@ -69,7 +70,24 @@ def list_new_message_ids_since(start_history_id: int, end_history_id: int) -> Li
         }
         if page_token:
             req["pageToken"] = page_token
-        resp = service.users().history().list(**req).execute()
+        try:
+            resp = service.users().history().list(**req).execute()
+        except HttpError as err:
+            logger.error(
+                "Gmail API error listing history %s-%s: %s",
+                start_history_id,
+                end_history_id,
+                err,
+            )
+            return []
+        except Exception as err:  # pragma: no cover - generic safeguard
+            logger.error(
+                "Unexpected error listing history %s-%s: %s",
+                start_history_id,
+                end_history_id,
+                err,
+            )
+            return []
         for history in resp.get("history", []):
             for added in history.get("messagesAdded", []):
                 msg_ids.add(added.get("message", {}).get("id"))
@@ -83,7 +101,20 @@ def get_message(message_id: str, format: str = "full") -> Dict[str, str]:
     """Return parsed details for a Gmail message."""
     service = get_gmail_service()
     user_id = os.getenv("GMAIL_USER_ID", "me")
-    msg = service.users().messages().get(userId=user_id, id=message_id, format=format).execute()
+    try:
+        msg = (
+            service.users()
+            .messages()
+            .get(userId=user_id, id=message_id, format=format)
+            .execute()
+        )
+    except HttpError as err:
+        logger.error("Gmail API error fetching message %s: %s", message_id, err)
+        return {}
+    except Exception as err:  # pragma: no cover - generic safeguard
+        logger.error("Unexpected error fetching message %s: %s", message_id, err)
+        return {}
+
     payload = msg.get("payload", {})
     headers = extract_headers(payload.get("headers", []))
     body_text = extract_body(payload)

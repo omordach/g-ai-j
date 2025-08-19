@@ -130,3 +130,33 @@ def test_pubsub_non_numeric_history_id(app_setup, monkeypatch):
     assert res.status_code == 204
     assert listed["called"] is False
     assert fs.get_last_history_id() is None
+
+
+def test_pubsub_gmail_api_failure(app_setup, pubsub_envelope, monkeypatch):
+    client = app_setup["client"]
+    fs = app_setup["firestore_state"]
+    gmail_client = app_setup["gmail_client"]
+
+    class Users:
+        def history(self):
+            return self
+
+        def list(self, **kwargs):
+            return self
+
+        def execute(self):
+            from types import SimpleNamespace
+            from googleapiclient.errors import HttpError
+
+            resp = SimpleNamespace(status=500, reason="boom")
+            raise HttpError(resp, b"error")
+
+    class Service:
+        def users(self):
+            return Users()
+
+    monkeypatch.setattr(gmail_client, "get_gmail_service", lambda: Service())
+
+    res = client.post("/pubsub", json=pubsub_envelope)
+    assert res.status_code == 204
+    assert fs.get_last_history_id() == 12345
