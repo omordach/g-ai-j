@@ -2,7 +2,7 @@ import os
 
 from gmail_client import get_latest_email_from
 from gpt_agent import gpt_classify_issue
-from jira_client import create_jira_ticket
+from jira_client import build_adf, create_ticket
 from logger_setup import logger
 
 
@@ -28,13 +28,11 @@ def main():
 
     logger.info(f"Email body for Jira:\n{email['body']}")
 
-    create_jira_ticket(
+    create_ticket(
         summary=email['subject'],
-        body=email['body'],
-        issue_type=gpt_data["issueType"],
+        adf_description=build_adf(email['body']),
         client=gpt_data.get("client", "N/A"),
-        gpt_data=gpt_data,
-        attachments=email.get("attachments", [])
+        issue_type=gpt_data["issueType"]
     )
 
 
