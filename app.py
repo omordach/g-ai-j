@@ -1,6 +1,7 @@
 import base64
 import json
 import os
+import re
 from flask import Flask, request
 
 import firestore_state
@@ -43,7 +44,15 @@ def process_message(message_id: str) -> None:
         client = DOMAIN_MAP[domain]
 
     adf = jira_client.build_adf(msg.get("body_text", ""))
-    labels = ["Billable", f"email_msgid_{msg.get('message_id')}"]
+
+    raw_msg_id = msg.get("message_id", "") or ""
+    sanitized_msg_id = re.sub(r"[<>]", "", raw_msg_id)
+    sanitized_msg_id = re.sub(r"[^A-Za-z0-9_-]+", "-", sanitized_msg_id).strip("-")
+
+    labels = ["Billable"]
+    if sanitized_msg_id:
+        labels.append(f"email_msgid_{sanitized_msg_id}")
+
     key = jira_client.create_ticket(
         msg.get("subject", "(No Subject)"),
         adf,
