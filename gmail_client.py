@@ -1,6 +1,6 @@
 import base64
 import os
-from typing import Dict, List
+from typing import Dict, Iterable, List
 
 from bs4 import BeautifulSoup
 from google.oauth2.credentials import Credentials
@@ -64,11 +64,12 @@ def extract_headers(headers: List[Dict]) -> Dict[str, str]:
     }
 
 
-def list_new_message_ids_since(start_history_id: int, end_history_id: int) -> List[str]:
-    """Return unique message IDs added between history IDs."""
+def list_new_message_ids_since(
+    start_history_id: int, end_history_id: int
+) -> Iterable[str]:
+    """Yield message IDs added between history IDs without storing them all."""
     service = get_gmail_service()
     user_id = os.getenv("GMAIL_USER_ID", "me")
-    msg_ids = set()
     page_token = None
     while True:
         req = {
@@ -87,7 +88,7 @@ def list_new_message_ids_since(start_history_id: int, end_history_id: int) -> Li
                 end_history_id,
                 err,
             )
-            return []
+            return
         except Exception as err:  # pragma: no cover - generic safeguard
             logger.error(
                 "Unexpected error listing history %s-%s: %s",
@@ -95,14 +96,15 @@ def list_new_message_ids_since(start_history_id: int, end_history_id: int) -> Li
                 end_history_id,
                 err,
             )
-            return []
+            return
         for history in resp.get("history", []):
             for added in history.get("messagesAdded", []):
-                msg_ids.add(added.get("message", {}).get("id"))
+                mid = added.get("message", {}).get("id")
+                if mid:
+                    yield mid
         page_token = resp.get("nextPageToken")
         if not page_token:
             break
-    return list(msg_ids)
 
 
 def get_message(message_id: str, format: str = "full") -> Dict[str, str]:

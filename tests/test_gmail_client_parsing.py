@@ -64,7 +64,7 @@ def test_list_new_message_ids_since_api_error(app_setup, monkeypatch):
 
     monkeypatch.setattr(gmail_client, "get_gmail_service", lambda: Service())
 
-    assert gmail_client.list_new_message_ids_since(1, 2) == []
+    assert list(gmail_client.list_new_message_ids_since(1, 2)) == []
 
 
 def test_get_message_api_error(app_setup, monkeypatch):

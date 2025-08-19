@@ -95,9 +95,8 @@ def pubsub_handler():
         logger.info("Received stale historyId %s", history_id)
         return "", 204
 
-    message_ids = gmail_client.list_new_message_ids_since(last_history_id, history_id)
     failed = False
-    for mid in message_ids:
+    for mid in gmail_client.list_new_message_ids_since(last_history_id, history_id):
         try:
             process_message(mid)
         except Exception as exc:
