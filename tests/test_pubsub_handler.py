@@ -1,3 +1,4 @@
+import base64
 import json
 
 
@@ -83,3 +84,49 @@ def test_pubsub_duplicate_message(app_setup, pubsub_envelope, monkeypatch):
     assert not called["get"]
     assert not called["ticket"]
     assert fs.get_last_history_id() == 12345
+
+
+def test_pubsub_missing_history_id(app_setup, monkeypatch):
+    client = app_setup["client"]
+    gmail_client = app_setup["gmail_client"]
+    fs = app_setup["firestore_state"]
+
+    listed = {"called": False}
+
+    def fake_list(start, end):
+        listed["called"] = True
+        return []
+
+    monkeypatch.setattr(gmail_client, "list_new_message_ids_since", fake_list)
+
+    payload = base64.b64encode(json.dumps({"emailAddress": "me"}).encode()).decode()
+    envelope = {"message": {"data": payload}}
+
+    res = client.post("/pubsub", json=envelope)
+    assert res.status_code == 204
+    assert listed["called"] is False
+    assert fs.get_last_history_id() is None
+
+
+def test_pubsub_non_numeric_history_id(app_setup, monkeypatch):
+    client = app_setup["client"]
+    gmail_client = app_setup["gmail_client"]
+    fs = app_setup["firestore_state"]
+
+    listed = {"called": False}
+
+    def fake_list(start, end):
+        listed["called"] = True
+        return []
+
+    monkeypatch.setattr(gmail_client, "list_new_message_ids_since", fake_list)
+
+    payload = base64.b64encode(
+        json.dumps({"emailAddress": "me", "historyId": "abc"}).encode()
+    ).decode()
+    envelope = {"message": {"data": payload}}
+
+    res = client.post("/pubsub", json=envelope)
+    assert res.status_code == 204
+    assert listed["called"] is False
+    assert fs.get_last_history_id() is None
