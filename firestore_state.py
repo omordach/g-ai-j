@@ -40,7 +40,12 @@ def get_last_history_id() -> Optional[int]:
     try:
         doc = _runtime_doc().get()
         if doc.exists:
-            return int(doc.to_dict().get("last_history_id"))
+            value = doc.to_dict().get("last_history_id")
+            try:
+                return int(value)
+            except (TypeError, ValueError):
+                logger.warning("Invalid last_history_id value: %r", value)
+                return None
     except exceptions.GoogleAPICallError as exc:
         logger.error("Failed to fetch last_history_id: %s", exc)
     return None
