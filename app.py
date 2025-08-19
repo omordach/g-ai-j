@@ -67,10 +67,19 @@ def pubsub_handler():
     data = msg.get("data")
     try:
         payload = json.loads(base64.b64decode(data).decode("utf-8")) if data else {}
-        history_id = int(payload.get("historyId"))
     except Exception as exc:
         logger.error("Failed to parse Pub/Sub message: %s", exc)
         return "Bad Request", 400
+
+    history_id_str = payload.get("historyId")
+    if history_id_str is None:
+        logger.warning("Missing historyId in Pub/Sub message")
+        return "", 204
+    try:
+        history_id = int(history_id_str)
+    except (TypeError, ValueError):
+        logger.warning("Non-numeric historyId: %s", history_id_str)
+        return "", 204
 
     last_history_id = firestore_state.get_last_history_id() or 0
     if history_id <= last_history_id:
