@@ -11,15 +11,23 @@ from logger_setup import logger
 
 SCOPES = ["https://www.googleapis.com/auth/gmail.readonly"]
 
+# Cached Gmail API service instance
+_service = None
+
 
 def get_gmail_service():
+    global _service
+    if _service is not None:
+        return _service
+
     token_path = "token.json"
     if not os.path.exists(token_path):
         logger.error("Gmail token file not found at %s", token_path)
         raise FileNotFoundError(token_path)
 
     creds = Credentials.from_authorized_user_file(token_path, SCOPES)
-    return build("gmail", "v1", credentials=creds)
+    _service = build("gmail", "v1", credentials=creds)
+    return _service
 
 
 def extract_body(payload: Dict) -> str:

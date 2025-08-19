@@ -76,6 +76,7 @@ def app_setup(monkeypatch, firestore_state_module):
     importlib.reload(jira_client)
     importlib.reload(gpt_agent)
     importlib.reload(app)
+    gmail_client._service = None
 
     client = app.app.test_client()
     return {
