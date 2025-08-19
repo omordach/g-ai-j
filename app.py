@@ -2,6 +2,7 @@ import base64
 import json
 import os
 import re
+from email.utils import parseaddr
 from flask import Flask, request
 
 import firestore_state
@@ -39,7 +40,9 @@ app = Flask(__name__)
 validate_config()
 
 DOMAIN_MAP = json.loads(os.getenv("DOMAIN_TO_CLIENT_JSON", "{}"))
-ALLOWED_SENDERS = set(json.loads(os.getenv("ALLOWED_SENDERS_JSON", "[]")))
+ALLOWED_SENDERS = {
+    s.strip().lower() for s in json.loads(os.getenv("ALLOWED_SENDERS_JSON", "[]"))
+}
 
 
 @app.get("/healthz")
@@ -53,17 +56,20 @@ def process_message(message_id: str) -> None:
         return
 
     msg = gmail_client.get_message(message_id)
-    sender = msg.get("from", "")
-    if ALLOWED_SENDERS and sender not in ALLOWED_SENDERS:
-        logger.info("Sender %s not allowed", sender)
+    sender_full = msg.get("from", "")
+    sender_addr = parseaddr(sender_full)[1].lower()
+    if ALLOWED_SENDERS and sender_addr not in ALLOWED_SENDERS:
+        logger.info("Sender %s not allowed (addr=%s)", sender_full, sender_addr)
         return
 
 
-    classification = gpt_classify_issue(msg.get("subject", ""), msg.get("body_text", ""))
+    classification = gpt_classify_issue(
+        msg.get("subject", ""), msg.get("body_text", "")
+    )
     issue_type = classification.get("issueType", "Task") if classification else "Task"
     client = classification.get("client", "N/A") if classification else "N/A"
 
-    domain = sender.split("@")[-1].lower() if "@" in sender else ""
+    domain = sender_addr.split("@")[-1].lower() if "@" in sender_addr else ""
     if domain in DOMAIN_MAP:
         client = DOMAIN_MAP[domain]
 
