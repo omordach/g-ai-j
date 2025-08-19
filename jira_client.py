@@ -62,3 +62,8 @@ def create_ticket(summary: str, adf_description: dict, client: str, issue_type: 
     except requests.RequestException as exc:
         logger.error("Request to Jira failed: %s", exc)
     return None
+
+
+def create_jira_ticket(*args, **kwargs):
+    """Backward-compatible wrapper for :func:`create_ticket`."""
+    return create_ticket(*args, **kwargs)
