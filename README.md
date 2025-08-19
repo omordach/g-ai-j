@@ -7,7 +7,7 @@ Utility that turns Gmail messages into Jira tickets. In addition to the original
 | File | Purpose |
 | --- | --- |
 | `app.py` | Flask service for Cloud Run. Handles `/healthz` and `/pubsub` endpoints. |
-| `gmail_client.py` | Wrapper around Gmail API. Fetches messages and lists history updates. |
+| `gmail_client.py` | Wrapper around Gmail API. Fetches messages, lists history updates, and extracts headers including `Message-ID` for deduplication. |
 | `jira_client.py` | Creates Jira issues with ADF descriptions and client custom field. |
 | `firestore_state.py` | Persists last processed history ID and recent message IDs in Firestore. |
 | `gmail_watch.py` | Helper script to register or renew Gmail `users.watch`. |
@@ -46,7 +46,7 @@ Utility that turns Gmail messages into Jira tickets. In addition to the original
    Re-run periodically (e.g. via Cloud Scheduler) to renew the watch before expiration.
 
 
-When Gmail pushes a notification to Pub/Sub, `app.py` retrieves new messages, asks GPT to classify the issue and determine the client from the email body, creates Jira tickets, and records processed message IDs in Firestore to avoid duplicates.
+When Gmail pushes a notification to Pub/Sub, `app.py` retrieves new messages, asks GPT to classify the issue and determine the client from the email body, creates Jira tickets, and records processed message IDs in Firestore to avoid duplicates. The `Message-ID` header is used to track each email reliably.
 
 
 ## Required environment variables
