@@ -41,12 +41,18 @@ def extract_body(payload: Dict) -> str:
 
 
 def extract_headers(headers: List[Dict]) -> Dict[str, str]:
-    desired = {"From": "", "Subject": "", "Date": "", "Message-Id": ""}
+    """Return a subset of headers with case-insensitive matching."""
+    desired = {"from": "", "subject": "", "date": "", "message-id": ""}
     for header in headers:
-        name = header.get("name")
+        name = header.get("name", "").lower()
         if name in desired:
             desired[name] = header.get("value", "")
-    return desired
+    return {
+        "From": desired["from"],
+        "Subject": desired["subject"],
+        "Date": desired["date"],
+        "Message-ID": desired["message-id"],
+    }
 
 
 def list_new_message_ids_since(start_history_id: int, end_history_id: int) -> List[str]:
@@ -86,7 +92,7 @@ def get_message(message_id: str, format: str = "full") -> Dict[str, str]:
         "from": headers.get("From"),
         "subject": headers.get("Subject"),
         "date": headers.get("Date"),
-        "message_id": headers.get("Message-Id"),
+        "message_id": headers.get("Message-ID"),
         "body_text": body_text,
     }
 

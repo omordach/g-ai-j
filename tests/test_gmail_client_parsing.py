@@ -29,3 +29,13 @@ def test_extract_body_nested_multipart(app_setup):
         ],
     }
     assert gmail_client.extract_body(payload) == "Inner HTML"
+
+
+def test_extract_headers_message_id(app_setup):
+    gmail_client = app_setup["gmail_client"]
+    headers = [
+        {"name": "From", "value": "foo@example.com"},
+        {"name": "Message-ID", "value": "<id1@example.com>"},
+    ]
+    result = gmail_client.extract_headers(headers)
+    assert result.get("Message-ID") == "<id1@example.com>"
