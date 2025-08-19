@@ -45,6 +45,11 @@ Utility that turns Gmail messages into Jira tickets. In addition to the original
    ```
    Re-run periodically (e.g. via Cloud Scheduler) to renew the watch before expiration.
 
+The service validates its configuration at startup and will exit if required
+Jira environment variables are missing or if `token.json` is absent. Ensure
+these are set before deployment so the container fails fast on
+misconfiguration.
+
 
 When Gmail pushes a notification to Pub/Sub, `app.py` retrieves new messages, asks GPT to classify the issue and determine the client from the email body, creates Jira tickets, and records processed message IDs in Firestore to avoid duplicates. The `Message-ID` header is used to track each email reliably.
 
