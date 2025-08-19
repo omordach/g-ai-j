@@ -86,6 +86,28 @@ def test_pubsub_duplicate_message(app_setup, pubsub_envelope, monkeypatch):
     assert fs.get_last_history_id() == 12345
 
 
+def test_pubsub_process_message_failure(app_setup, pubsub_envelope, monkeypatch, caplog):
+    client = app_setup["client"]
+    fs = app_setup["firestore_state"]
+    gmail_client = app_setup["gmail_client"]
+    app_module = app_setup["app"]
+
+    monkeypatch.setattr(gmail_client, "list_new_message_ids_since", lambda s, e: ["A1", "A2"])
+
+    def fake_process(mid):
+        if mid == "A2":
+            raise RuntimeError("boom")
+
+    monkeypatch.setattr(app_module, "process_message", fake_process)
+
+    with caplog.at_level("ERROR"):
+        res = client.post("/pubsub", json=pubsub_envelope)
+
+    assert res.status_code == 204
+    assert fs.get_last_history_id() is None
+    assert "not updating history ID" in caplog.text
+
+
 def test_pubsub_missing_history_id(app_setup, monkeypatch):
     client = app_setup["client"]
     gmail_client = app_setup["gmail_client"]
