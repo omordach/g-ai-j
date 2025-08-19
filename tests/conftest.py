@@ -76,6 +76,7 @@ def app_setup(monkeypatch, firestore_state_module):
     )
     with open(token_path, "w") as f:
         json.dump({}, f)
+    monkeypatch.setenv("GMAIL_TOKEN_FILE_PATH", token_path)
 
     import gmail_client, jira_client, gpt_agent, app
     importlib.reload(gmail_client)

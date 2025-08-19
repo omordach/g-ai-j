@@ -1,5 +1,6 @@
 import base64
 import os
+import json
 from typing import Dict, Iterable, List
 
 from bs4 import BeautifulSoup
@@ -10,6 +11,7 @@ from googleapiclient.errors import HttpError
 from logger_setup import logger
 
 SCOPES = ["https://www.googleapis.com/auth/gmail.readonly"]
+TOKEN_PATH = os.environ.get("GMAIL_TOKEN_FILE_PATH", "/workspace/token.json")
 
 # Cached Gmail API service instance
 _service = None
@@ -20,12 +22,18 @@ def get_gmail_service():
     if _service is not None:
         return _service
 
-    token_path = "token.json"
-    if not os.path.exists(token_path):
-        logger.error("Gmail token file not found at %s", token_path)
-        raise FileNotFoundError(token_path)
-
-    creds = Credentials.from_authorized_user_file(token_path, SCOPES)
+    if os.path.exists(TOKEN_PATH):
+        creds = Credentials.from_authorized_user_file(TOKEN_PATH, SCOPES)
+    else:
+        token_json = os.environ.get("GMAIL_TOKEN_FILE", "").strip()
+        if token_json.startswith("{"):
+            creds = Credentials.from_authorized_user_info(json.loads(token_json), SCOPES)
+        else:
+            logger.error(
+                "Gmail token not found. Checked path %s and GMAIL_TOKEN_FILE env.",
+                TOKEN_PATH,
+            )
+            raise FileNotFoundError(TOKEN_PATH)
     _service = build("gmail", "v1", credentials=creds)
     return _service
 
