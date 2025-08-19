@@ -85,6 +85,12 @@ def process_message(message_id: str) -> None:
 
     if key:
         firestore_state.mark_processed(message_id)
+    else:
+        logger.error(
+            "Failed to create Jira ticket for message %s; response: %s",
+            message_id,
+            key,
+        )
 
 
 @app.post("/pubsub")
