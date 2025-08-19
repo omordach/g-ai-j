@@ -71,6 +71,12 @@ def app_setup(monkeypatch, firestore_state_module):
     domain_map = {"oetraining.com": "OETraining"}
     monkeypatch.setenv("DOMAIN_TO_CLIENT_JSON", json.dumps(domain_map))
 
+    token_path = os.path.join(
+        os.path.dirname(os.path.dirname(__file__)), "token.json"
+    )
+    with open(token_path, "w") as f:
+        json.dump({}, f)
+
     import gmail_client, jira_client, gpt_agent, app
     importlib.reload(gmail_client)
     importlib.reload(jira_client)

@@ -12,7 +12,29 @@ from gpt_agent import gpt_classify_issue
 
 from logger_setup import logger
 
+
+REQUIRED_ENV_VARS = [
+    "JIRA_URL",
+    "JIRA_PROJECT_KEY",
+    "JIRA_USER",
+    "JIRA_API_TOKEN",
+    "JIRA_CLIENT_FIELD_ID",
+]
+
+
+def validate_config() -> None:
+    missing = [var for var in REQUIRED_ENV_VARS if not os.getenv(var)]
+    if not os.path.exists("token.json"):
+        raise FileNotFoundError("token.json not found")
+    if missing:
+        raise EnvironmentError(
+            f"Missing environment variables: {', '.join(missing)}"
+        )
+    logger.info("Configuration validated")
+
+
 app = Flask(__name__)
+validate_config()
 
 DOMAIN_MAP = json.loads(os.getenv("DOMAIN_TO_CLIENT_JSON", "{}"))
 ALLOWED_SENDERS = set(json.loads(os.getenv("ALLOWED_SENDERS_JSON", "[]")))
