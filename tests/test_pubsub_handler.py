@@ -37,7 +37,7 @@ def test_pubsub_happy_path(app_setup, pubsub_envelope, monkeypatch):
     assert fs.get_last_history_id() == 12345
     assert fs.is_processed("A1")
     assert called["client"] == "OETraining"
-    assert "email_msgid_<abc@googlemail.com>" in called["labels"]
+    assert "email_msgid_abc-googlemail-com" in called["labels"]
 
 
 def test_pubsub_duplicate_history(app_setup, pubsub_envelope, monkeypatch):
