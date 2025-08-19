@@ -13,6 +13,8 @@ from gpt_agent import gpt_classify_issue
 from logger_setup import logger
 
 
+TOKEN_PATH = os.environ.get("GMAIL_TOKEN_FILE_PATH", "/workspace/token.json")
+
 REQUIRED_ENV_VARS = [
     "JIRA_URL",
     "JIRA_PROJECT_KEY",
@@ -24,8 +26,8 @@ REQUIRED_ENV_VARS = [
 
 def validate_config() -> None:
     missing = [var for var in REQUIRED_ENV_VARS if not os.getenv(var)]
-    if not os.path.exists("token.json"):
-        raise FileNotFoundError("token.json not found")
+    if not os.path.exists(TOKEN_PATH):
+        raise FileNotFoundError(f"Gmail token not found at {TOKEN_PATH}")
     if missing:
         raise EnvironmentError(
             f"Missing environment variables: {', '.join(missing)}"
