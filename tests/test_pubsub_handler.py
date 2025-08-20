@@ -168,6 +168,7 @@ def test_pubsub_gmail_api_failure(app_setup, pubsub_envelope, monkeypatch):
 
         def execute(self):
             from types import SimpleNamespace
+
             from googleapiclient.errors import HttpError
 
             resp = SimpleNamespace(status=500, reason="boom")

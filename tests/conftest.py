@@ -1,6 +1,6 @@
 import base64
-import json
 import importlib
+import json
 import os
 import sys
 from types import SimpleNamespace
@@ -10,7 +10,7 @@ from google.cloud import firestore as firestore_mod
 
 # Ensure the repository root is on the import path so application modules can
 # be imported when tests run from the `tests/` directory.
-sys.path.append(os.path.dirname(os.path.dirname(__file__)))
+sys.path.append(os.path.join(os.path.dirname(os.path.dirname(__file__)), "src"))
 
 
 class FakeDocument:
@@ -53,7 +53,15 @@ class FakeFirestoreClient:
 def firestore_state_module(monkeypatch):
     """Provide the firestore_state module backed by an in-memory store."""
     monkeypatch.setattr(firestore_mod, "Client", FakeFirestoreClient)
-    import firestore_state
+    monkeypatch.setenv("JIRA_URL", "https://example.atlassian.net")
+    monkeypatch.setenv("JIRA_USER", "user@example.com")
+    monkeypatch.setenv("JIRA_API_TOKEN", "token")
+    monkeypatch.setenv("JIRA_PROJECT_KEY", "UIV4")
+    monkeypatch.setenv("JIRA_CLIENT_FIELD_ID", "customfield_10000")
+    monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
+    import gaij.firestore_state as firestore_state
+    import gaij.settings as settings
+    importlib.reload(settings)
     importlib.reload(firestore_state)
     return firestore_state
 
@@ -78,7 +86,12 @@ def app_setup(monkeypatch, firestore_state_module):
         json.dump({}, f)
     monkeypatch.setenv("GMAIL_TOKEN_FILE_PATH", token_path)
 
-    import gmail_client, jira_client, gpt_agent, app
+    import gaij.settings as settings
+    importlib.reload(settings)
+    import gaij.app as app
+    import gaij.gmail_client as gmail_client
+    import gaij.gpt_agent as gpt_agent
+    import gaij.jira_client as jira_client
     importlib.reload(gmail_client)
     importlib.reload(jira_client)
     importlib.reload(gpt_agent)

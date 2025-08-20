@@ -1,33 +1,34 @@
 import base64
-import os
 import json
-from typing import Dict, Iterable, List
+import os
+from collections.abc import Iterable
+from typing import Any
 
 from bs4 import BeautifulSoup
 from google.oauth2.credentials import Credentials
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
 
-from logger_setup import logger
+from .logger_setup import logger
+from .settings import settings
 
 SCOPES = ["https://www.googleapis.com/auth/gmail.readonly"]
-TOKEN_PATH = os.environ.get("GMAIL_TOKEN_FILE_PATH", "/workspace/token.json")
+TOKEN_PATH = settings.gmail_token_file_path
 
-# Cached Gmail API service instance
-_service = None
+_service: Any | None = None
 
 
-def get_gmail_service():
+def get_gmail_service() -> Any:
     global _service
     if _service is not None:
         return _service
 
     if os.path.exists(TOKEN_PATH):
-        creds = Credentials.from_authorized_user_file(TOKEN_PATH, SCOPES)
+        creds = Credentials.from_authorized_user_file(TOKEN_PATH, SCOPES)  # type: ignore[no-untyped-call]
     else:
         token_json = os.environ.get("GMAIL_TOKEN_FILE", "").strip()
         if token_json.startswith("{"):
-            creds = Credentials.from_authorized_user_info(json.loads(token_json), SCOPES)
+            creds = Credentials.from_authorized_user_info(json.loads(token_json), SCOPES)  # type: ignore[no-untyped-call]
         else:
             logger.error(
                 "Gmail token not found. Checked path %s and GMAIL_TOKEN_FILE env.",
@@ -38,7 +39,7 @@ def get_gmail_service():
     return _service
 
 
-def extract_body(payload: Dict) -> str:
+def extract_body(payload: dict[str, Any]) -> str:
     """Recursively extracts email body text from payload."""
     mime_type = payload.get("mimeType", "")
     body_data = payload.get("body", {}).get("data")
@@ -57,7 +58,7 @@ def extract_body(payload: Dict) -> str:
     return ""
 
 
-def extract_headers(headers: List[Dict]) -> Dict[str, str]:
+def extract_headers(headers: list[dict[str, str]]) -> dict[str, str]:
     """Return a subset of headers with case-insensitive matching."""
     desired = {"from": "", "subject": "", "date": "", "message-id": ""}
     for header in headers:
@@ -77,7 +78,7 @@ def list_new_message_ids_since(
 ) -> Iterable[str]:
     """Yield message IDs added between history IDs without storing them all."""
     service = get_gmail_service()
-    user_id = os.getenv("GMAIL_USER_ID", "me")
+    user_id = settings.gmail_user_id
     page_token = None
     while True:
         req = {
@@ -115,10 +116,10 @@ def list_new_message_ids_since(
             break
 
 
-def get_message(message_id: str, format: str = "full") -> Dict[str, str]:
+def get_message(message_id: str, format: str = "full") -> dict[str, str]:
     """Return parsed details for a Gmail message."""
     service = get_gmail_service()
-    user_id = os.getenv("GMAIL_USER_ID", "me")
+    user_id = settings.gmail_user_id
     try:
         msg = (
             service.users()
@@ -138,15 +139,15 @@ def get_message(message_id: str, format: str = "full") -> Dict[str, str]:
     body_text = extract_body(payload)
 
     return {
-        "from": headers.get("From"),
-        "subject": headers.get("Subject"),
-        "date": headers.get("Date"),
-        "message_id": headers.get("Message-ID"),
+        "from": headers.get("From", ""),
+        "subject": headers.get("Subject", ""),
+        "date": headers.get("Date", ""),
+        "message_id": headers.get("Message-ID", ""),
         "body_text": body_text,
     }
 
 
-def get_latest_email_from(sender):
+def get_latest_email_from(sender: str) -> dict[str, Any] | None:
     service = get_gmail_service()
     query = f"from:{sender}"
     results = service.users().messages().list(userId="me", q=query, maxResults=1).execute()
@@ -166,5 +167,5 @@ def get_latest_email_from(sender):
     return {
         "subject": subject,
         "body": body,
-        "attachments": []  # Attachments can be implemented later if needed
+        "attachments": [],  # Attachments can be implemented later if needed
     }

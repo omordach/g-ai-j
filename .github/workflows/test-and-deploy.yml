@@ -20,16 +20,26 @@ jobs:
         with:
           python-version: '3.11'
           cache: 'pip'
-          cache-dependency-path: requirements.txt
 
       - name: Install deps
         run: |
           python -m pip install --upgrade pip
-          pip install -r requirements.txt
-          pip install pytest
+          pip install .[dev]
 
-      - name: Run tests
-        run: pytest -q
+      - name: Ruff
+        run: ruff check --select I,UP,B,C4,SIM,N,RUF --fix .
+
+      - name: Mypy
+        run: mypy --strict src/gaij
+
+      - name: Bandit
+        run: bandit -r src/gaij
+
+      - name: Radon
+        run: radon cc src/gaij -s --fail B
+
+      - name: Pytest
+        run: pytest -q --cov=gaij --cov-fail-under=90
 
   deploy:
     needs: test

@@ -3,50 +3,32 @@ import json
 import os
 import re
 from email.utils import parseaddr
+
 from flask import Flask, request
 
-import firestore_state
-import gmail_client
-import jira_client
+from . import firestore_state, gmail_client, jira_client
+from .gpt_agent import gpt_classify_issue
+from .logger_setup import logger
+from .settings import settings
 
-from gpt_agent import gpt_classify_issue
-
-from logger_setup import logger
-
-
-TOKEN_PATH = os.environ.get("GMAIL_TOKEN_FILE_PATH", "/workspace/token.json")
-
-REQUIRED_ENV_VARS = [
-    "JIRA_URL",
-    "JIRA_PROJECT_KEY",
-    "JIRA_USER",
-    "JIRA_API_TOKEN",
-    "JIRA_CLIENT_FIELD_ID",
-]
+TOKEN_PATH = settings.gmail_token_file_path
 
 
 def validate_config() -> None:
-    missing = [var for var in REQUIRED_ENV_VARS if not os.getenv(var)]
     if not os.path.exists(TOKEN_PATH):
         raise FileNotFoundError(f"Gmail token not found at {TOKEN_PATH}")
-    if missing:
-        raise EnvironmentError(
-            f"Missing environment variables: {', '.join(missing)}"
-        )
     logger.info("Configuration validated")
 
 
 app = Flask(__name__)
 validate_config()
 
-DOMAIN_MAP = json.loads(os.getenv("DOMAIN_TO_CLIENT_JSON", "{}"))
-ALLOWED_SENDERS = {
-    s.strip().lower() for s in json.loads(os.getenv("ALLOWED_SENDERS_JSON", "[]"))
-}
+DOMAIN_MAP = settings.domain_to_client_json
+ALLOWED_SENDERS = {s.strip().lower() for s in settings.allowed_senders_json}
 
 
 @app.get("/healthz")
-def healthz():
+def healthz() -> tuple[str, int]:
     return "ok", 200
 
 
@@ -102,7 +84,7 @@ def process_message(message_id: str) -> None:
 
 
 @app.post("/pubsub")
-def pubsub_handler():
+def pubsub_handler() -> tuple[str, int]:
     envelope = request.get_json(silent=True)
     if not envelope or "message" not in envelope:
         logger.error("Invalid Pub/Sub envelope")
