@@ -50,11 +50,15 @@ def test_main_creates_ticket(monkeypatch):
 
     monkeypatch.setattr(main, "create_ticket", fake_create_ticket)
     main.main()
-    assert called == {
-        "summary": "Sub",
-        "adf": "Body",
-        "client": "Acme",
-        "issue_type": "Bug",
+    assert called["summary"] == "Sub"
+    assert called["client"] == "Acme"
+    assert called["issue_type"] == "Bug"
+    assert called["adf"] == {
+        "type": "doc",
+        "version": 1,
+        "content": [
+            {"type": "paragraph", "content": [{"type": "text", "text": "Body"}]}
+        ],
     }
 
 

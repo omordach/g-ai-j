@@ -82,9 +82,11 @@ def test_list_new_message_ids_since_success(monkeypatch, app_setup):
                 }
             return {"history": [{"messagesAdded": [{"message": {"id": "2"}}]}]}
 
+    users = Users()
+
     class Service:
         def users(self):
-            return Users()
+            return users
 
     monkeypatch.setattr(gmail_client, "get_gmail_service", lambda: Service())
     ids = list(gmail_client.list_new_message_ids_since(1, 2))

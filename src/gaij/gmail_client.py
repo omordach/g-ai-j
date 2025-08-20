@@ -74,13 +74,17 @@ def extract_headers(headers: list[dict[str, str]]) -> dict[str, str]:
 
 
 def list_new_message_ids_since(
-    start_history_id: int, end_history_id: int
+    start_history_id: int,
+    end_history_id: int,
+    *,
+    _max_pages: int = 1000,
 ) -> Iterable[str]:
     """Yield message IDs added between history IDs without storing them all."""
     service = get_gmail_service()
     user_id = settings.gmail_user_id
     page_token = None
-    while True:
+    pages = 0
+    while pages < _max_pages:
         req = {
             "userId": user_id,
             "startHistoryId": start_history_id,
@@ -114,6 +118,14 @@ def list_new_message_ids_since(
         page_token = resp.get("nextPageToken")
         if not page_token:
             break
+        pages += 1
+    else:  # pragma: no cover - defensive safeguard
+        logger.error(
+            "Exceeded %d pages listing Gmail history %s-%s",
+            _max_pages,
+            start_history_id,
+            end_history_id,
+        )
 
 
 def get_message(message_id: str, format: str = "full") -> dict[str, str]:
