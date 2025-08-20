@@ -132,4 +132,4 @@ def pubsub_handler() -> tuple[str, int]:
 
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=8080)
+    app.run(host=settings.app_host, port=settings.app_port)

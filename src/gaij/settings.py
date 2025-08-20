@@ -26,6 +26,9 @@ class Settings:
         default_factory=lambda: json.loads(os.getenv("ALLOWED_SENDERS_JSON", "[]"))
     )
 
+    app_host: str = os.getenv("APP_HOST", "127.0.0.1")
+    app_port: int = int(os.getenv("APP_PORT", "8080"))
+
     gcp_project_id: str | None = os.getenv("GCP_PROJECT_ID")
     gcp_firestore_collection: str = os.getenv("GCP_FIRESTORE_COLLECTION", "gaij_state")
     pubsub_topic: str | None = os.getenv("PUBSUB_TOPIC")
