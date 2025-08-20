@@ -36,7 +36,9 @@ jobs:
         run: bandit -r src/gaij
 
       - name: Radon
-        run: radon cc src/gaij -s --fail B
+        run: |
+          radon cc src/gaij -s -n B | tee /tmp/radon.txt
+          test ! -s /tmp/radon.txt
 
       - name: Pytest
         run: pytest -q --cov=gaij --cov-fail-under=90

@@ -23,6 +23,9 @@ repos:
     hooks:
       - id: radon
         name: radon
-        entry: radon
+        entry: bash
         language: system
-        args: ["cc", "src/gaij", "-s", "--fail", "B"]
+        pass_filenames: false
+        args:
+          - -c
+          - radon cc src/gaij -s -n B | tee /tmp/radon.txt && test ! -s /tmp/radon.txt
