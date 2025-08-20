@@ -1,16 +1,16 @@
-import os
 import time
+from typing import Any, cast
 
-import firestore_state
-import gmail_client
-from logger_setup import logger
+from . import firestore_state, gmail_client
+from .logger_setup import logger
+from .settings import settings
 
 
-def register_watch():
+def register_watch() -> dict[str, Any]:
     service = gmail_client.get_gmail_service()
-    user = os.getenv("GMAIL_USER_ID", "me")
-    project = os.getenv("GCP_PROJECT_ID")
-    topic = os.getenv("PUBSUB_TOPIC")
+    user = settings.gmail_user_id
+    project = settings.gcp_project_id
+    topic = settings.pubsub_topic
     body = {
         "topicName": f"projects/{project}/topics/{topic}",
         "labelIds": ["INBOX"],
@@ -20,10 +20,10 @@ def register_watch():
     firestore_state.set_watch(response.get("historyId"), response.get("expiration"))
     firestore_state.set_last_history_id(int(response.get("historyId")))
     logger.info("Registered Gmail watch: %s", response)
-    return response
+    return cast(dict[str, Any], response)
 
 
-def renew_watch_if_needed():
+def renew_watch_if_needed() -> None:
     watch = firestore_state.get_watch()
     if not watch:
         logger.info("No existing watch; registering new one")

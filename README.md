@@ -74,6 +74,34 @@ OPENAI_API_KEY=...
 
 ```
 
+### Gmail token configuration
+
+The application reads Gmail OAuth credentials from the path given by
+`GMAIL_TOKEN_FILE_PATH`. At start-up the token file must exist at that
+location; otherwise the service will fail fast.
+
+To check which path is in use, inspect the environment variable:
+
+```
+echo $GMAIL_TOKEN_FILE_PATH
+```
+
+If you prefer to inject the token content directly, set
+`GMAIL_TOKEN_FILE` to the JSON contents and the application will write
+the file to `GMAIL_TOKEN_FILE_PATH` on boot. A typical configuration
+inside Docker is:
+
+```
+export GMAIL_TOKEN_FILE_PATH=/app/token.json
+export GMAIL_TOKEN_FILE="$(cat token.json)"
+```
+
+Verify that the file exists before running the service:
+
+```
+[ -f "$GMAIL_TOKEN_FILE_PATH" ] && echo "Token present" || echo "Missing token"
+```
+
 ## Docker
 
 ```

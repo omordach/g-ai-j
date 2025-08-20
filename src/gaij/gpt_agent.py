@@ -1,21 +1,17 @@
 # gpt_agent.py
 
-import os
-from openai import OpenAI
-from dotenv import load_dotenv
 import json
-from logger_setup import logger
+from typing import Any, Optional, cast
 
-load_dotenv()
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+from openai import OpenAI
 
-if not OPENAI_API_KEY:
-    raise EnvironmentError("OPENAI_API_KEY environment variable not set")
+from .logger_setup import logger
+from .settings import settings
 
-client = OpenAI(api_key=OPENAI_API_KEY)
+client = OpenAI(api_key=settings.openai_api_key)
 
 
-def gpt_classify_issue(subject, body):
+def gpt_classify_issue(subject: str, body: str) -> dict[str, Any] | None:
     prompt = f"""
 You are an assistant that classifies emails into JIRA tickets.
 Based on the following subject and body, return a JSON object with:
@@ -32,11 +28,11 @@ Respond only with a JSON object, nothing else.
         response = client.chat.completions.create(
             model="gpt-4",
             messages=[{"role": "user", "content": prompt}],
-            temperature=0.2
+            temperature=0.2,
         )
-        content = response.choices[0].message.content
-        logger.info(f"GPT Response: {content}")
-        return json.loads(content)
-    except Exception as e:
-        logger.error(f"GPT call or JSON parse failed: {e}")
+        content = response.choices[0].message.content or "{}"
+        logger.info("GPT Response: %s", content)
+        return cast(dict[str, Any], json.loads(content))
+    except Exception as exc:  # pragma: no cover - network issues
+        logger.error("GPT call or JSON parse failed: %s", exc)
         return None

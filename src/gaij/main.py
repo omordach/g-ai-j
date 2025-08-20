@@ -1,15 +1,14 @@
-import os
+from .gmail_client import get_latest_email_from
+from .gpt_agent import gpt_classify_issue
+from .jira_client import build_adf, create_ticket
+from .logger_setup import logger
+from .settings import settings
 
-from gmail_client import get_latest_email_from
-from gpt_agent import gpt_classify_issue
-from jira_client import build_adf, create_ticket
-from logger_setup import logger
 
-
-def main():
+def main() -> None:
     logger.info("g-ai-j started")
 
-    sender = os.getenv("EMAIL_SENDER")
+    sender = settings.email_sender
     if not sender:
         logger.error("EMAIL_SENDER environment variable not set")
         return
