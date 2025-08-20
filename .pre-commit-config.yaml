@@ -28,4 +28,4 @@ repos:
         pass_filenames: false
         args:
           - -c
-          - radon cc src/gaij -s -n B | tee /tmp/radon.txt && test ! -s /tmp/radon.txt
+          - radon cc src/gaij -s -n C | tee /tmp/radon.txt && test ! -s /tmp/radon.txt
