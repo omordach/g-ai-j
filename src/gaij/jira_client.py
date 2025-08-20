@@ -1,26 +1,15 @@
-import os
-from typing import List, Optional
+from typing import Any, Optional
 
-import requests
-from requests.auth import HTTPBasicAuth
-from dotenv import load_dotenv
+import requests  # type: ignore[import-untyped]
+from requests.auth import HTTPBasicAuth  # type: ignore[import-untyped]
 
-from logger_setup import logger
+from .logger_setup import logger
+from .settings import settings
 
-load_dotenv()
-
-JIRA_URL = os.getenv("JIRA_URL")
-PROJECT_KEY = os.getenv("JIRA_PROJECT_KEY")
-ASSIGNEE = os.getenv("JIRA_ASSIGNEE") or os.getenv("JIRA_USER")
-CLIENT_FIELD_ID = os.getenv("JIRA_CLIENT_FIELD_ID")
-
-REQUIRED_ENV_VARS = ["JIRA_URL", "JIRA_PROJECT_KEY", "JIRA_USER", "JIRA_API_TOKEN", "JIRA_CLIENT_FIELD_ID"]
-missing = [var for var in REQUIRED_ENV_VARS if not os.getenv(var)]
-if missing:
-    raise EnvironmentError(f"Missing environment variables: {', '.join(missing)}")
+CLIENT_FIELD_ID = settings.jira_client_field_id
 
 
-def build_adf(text: str) -> dict:
+def build_adf(text: str) -> dict[str, Any]:
     lines = text.splitlines() if text else []
     content = []
     for line in lines:
@@ -30,23 +19,23 @@ def build_adf(text: str) -> dict:
     return {"type": "doc", "version": 1, "content": content}
 
 
-def create_ticket(summary: str, adf_description: dict, client: str, issue_type: str = "Task", labels: Optional[List[str]] = None, assignee: Optional[str] = None) -> Optional[str]:
+def create_ticket(summary: str, adf_description: dict[str, Any], client: str, issue_type: str = "Task", labels: list[str] | None = None, assignee: str | None = None) -> str | None:
     if labels is None:
         labels = ["Billable"]
-    url = f"{JIRA_URL}/rest/api/3/issue"
-    auth = HTTPBasicAuth(os.getenv("JIRA_USER"), os.getenv("JIRA_API_TOKEN"))
+    url = f"{settings.jira_url}/rest/api/3/issue"
+    auth = HTTPBasicAuth(settings.jira_user, settings.jira_api_token)
     headers = {"Accept": "application/json", "Content-Type": "application/json"}
 
     fields = {
-        "project": {"key": PROJECT_KEY},
+        "project": {"key": settings.jira_project_key},
         "summary": summary,
         "description": adf_description,
         "issuetype": {"name": issue_type},
-        CLIENT_FIELD_ID: [{"value": client}],
+        settings.jira_client_field_id: [{"value": client}],
         "labels": labels,
         "priority": {"name": "Medium"},
     }
-    assignee = assignee or ASSIGNEE
+    assignee = assignee or settings.jira_assignee
     if assignee:
         fields["assignee"] = {"emailAddress": assignee}
 
@@ -57,13 +46,13 @@ def create_ticket(summary: str, adf_description: dict, client: str, issue_type: 
         if response.status_code == 201:
             key = response.json().get("key")
             logger.info("Jira ticket created: %s", key)
-            return key
+            return str(key) if key else None
         logger.error("Failed to create Jira ticket: %s %s", response.status_code, response.text)
     except requests.RequestException as exc:
         logger.error("Request to Jira failed: %s", exc)
     return None
 
 
-def create_jira_ticket(*args, **kwargs):
+def create_jira_ticket(*args: Any, **kwargs: Any) -> str | None:
     """Backward-compatible wrapper for :func:`create_ticket`."""
     return create_ticket(*args, **kwargs)

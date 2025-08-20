@@ -1,19 +1,21 @@
-import os
-from typing import Optional
-from google.cloud import firestore
-from google.api_core import exceptions
-from logger_setup import logger
+from typing import Any, Optional
 
-PROJECT_ID = os.getenv("GCP_PROJECT_ID")
-COLLECTION = os.getenv("GCP_FIRESTORE_COLLECTION", "gaij_state")
+from google.api_core import exceptions
+from google.cloud import firestore
+
+from .logger_setup import logger
+from .settings import settings
+
+PROJECT_ID = settings.gcp_project_id
+COLLECTION = settings.gcp_firestore_collection
 
 # Lazily initialize the Firestore client so tests can provide fakes without
 # needing real GCP credentials at import time.
-_client = None
-_collection = None
+_client: Any | None = None
+_collection: Any | None = None
 
 
-def _get_collection():
+def _get_collection() -> Any:
     """Return the Firestore collection, creating the client on first use."""
     global _client, _collection
     if _collection is None:
@@ -24,19 +26,19 @@ def _get_collection():
 _MAX_STORED_IDS = 5000
 
 
-def _processed_doc():
+def _processed_doc() -> Any:
     return _get_collection().document("processed")
 
 
-def _runtime_doc():
+def _runtime_doc() -> Any:
     return _get_collection().document("runtime")
 
 
-def _config_doc():
+def _config_doc() -> Any:
     return _get_collection().document("config").collection("watch").document("current")
 
 
-def get_last_history_id() -> Optional[int]:
+def get_last_history_id() -> int | None:
     try:
         doc = _runtime_doc().get()
         if doc.exists:
@@ -81,7 +83,7 @@ def mark_processed(message_id: str) -> None:
         logger.error("Failed to mark processed message: %s", exc)
 
 
-def get_watch() -> Optional[dict]:
+def get_watch() -> dict[str, Any] | None:
     try:
         doc = _config_doc().get()
         return doc.to_dict() if doc.exists else None

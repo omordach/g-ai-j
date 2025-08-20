@@ -4,7 +4,9 @@ import json
 
 def test_sender_normalization(monkeypatch, app_setup):
     monkeypatch.setenv("ALLOWED_SENDERS_JSON", json.dumps(["Oleh@Get-Code.net"]))
-    import app
+    import gaij.app as app
+    import gaij.settings as settings
+    importlib.reload(settings)
     app = importlib.reload(app)
 
     assert "oleh@get-code.net" in app.ALLOWED_SENDERS

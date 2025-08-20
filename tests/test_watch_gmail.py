@@ -3,22 +3,24 @@ import time
 
 
 def test_register_watch(monkeypatch, firestore_state_module):
-    import gmail_watch
+    monkeypatch.setenv("GCP_PROJECT_ID", "proj")
+    monkeypatch.setenv("PUBSUB_TOPIC", "gmail-notifications")
+    import gaij.gmail_watch as gmail_watch
+    import gaij.settings as settings
+    importlib.reload(settings)
     importlib.reload(gmail_watch)
 
     class FakeService:
         def users(self):
             return self
 
-        def watch(self, userId, body):
+        def watch(self, userId, body):  # noqa: N803
             self.body = body
             return self
 
         def execute(self):
             return {"historyId": "99", "expiration": 2000}
 
-    monkeypatch.setenv("GCP_PROJECT_ID", "proj")
-    monkeypatch.setenv("PUBSUB_TOPIC", "gmail-notifications")
     monkeypatch.setattr(gmail_watch.gmail_client, "get_gmail_service", lambda: FakeService())
 
     gmail_watch.register_watch()
@@ -28,7 +30,9 @@ def test_register_watch(monkeypatch, firestore_state_module):
 
 
 def test_renew_watch_if_expiring(monkeypatch, firestore_state_module):
-    import gmail_watch
+    import gaij.gmail_watch as gmail_watch
+    import gaij.settings as settings
+    importlib.reload(settings)
     importlib.reload(gmail_watch)
 
     called = {"registered": False}
