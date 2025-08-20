@@ -1,0 +1,76 @@
+name: Deploy to Cloud Run (Ansible)
+on:
+  workflow_dispatch: {}
+  push:
+    branches: [ main ]
+    paths:
+      - "infra/"
+      - "Dockerfile"
+      - "/*.py"
+      - ".github/workflows/deploy.yml"
+
+jobs:
+  deploy:
+    if: ${{ false }} # flip to true to enable when secrets are set
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install Ansible
+        run: pip install ansible-core==2.15.8
+
+      - name: Install gcloud
+        uses: google-github-actions/setup-gcloud@v2
+        with:
+          version: ">= 471.0.0"
+          project_id: ${{ secrets.GCP_PROJECT_ID }}
+
+      - name: Auth to Google Cloud (Workload Identity or SA key)
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.WIF_PROVIDER }} # optional
+          service_account: ${{ secrets.DEPLOY_SA }}               # <name>@<project>.iam.gserviceaccount.com
+          credentials_json: ${{ secrets.GCP_SA_KEY }}             # or SA JSON key if WIF not used
+
+      - name: Write .env from GitHub secrets (only keys we need at deploy)
+        run: |
+          cat > .env <<'EOF'
+          JIRA_URL=${{ secrets.JIRA_URL }}
+          JIRA_PROJECT_KEY=${{ secrets.JIRA_PROJECT_KEY }}
+          JIRA_USER=${{ secrets.JIRA_USER }}
+          JIRA_API_TOKEN=${{ secrets.JIRA_API_TOKEN }}
+          JIRA_CLIENT_FIELD_ID=${{ secrets.JIRA_CLIENT_FIELD_ID }}
+          JIRA_ASSIGNEE=${{ secrets.JIRA_ASSIGNEE }}
+          GMAIL_TOKEN_FILE=${{ secrets.GMAIL_TOKEN_FILE }}
+          GMAIL_USER_ID=me
+          DOMAIN_TO_CLIENT_JSON=${{ secrets.DOMAIN_TO_CLIENT_JSON }}
+          ALLOWED_SENDERS_JSON=${{ secrets.ALLOWED_SENDERS_JSON }}
+          GCP_PROJECT_ID=${{ secrets.GCP_PROJECT_ID }}
+          GCP_FIRESTORE_COLLECTION=${{ secrets.GCP_FIRESTORE_COLLECTION }}
+          PUBSUB_TOPIC=${{ secrets.PUBSUB_TOPIC }}
+          OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }}
+          EMAIL_SENDER=${{ secrets.EMAIL_SENDER }}
+          CLIENT_LIST=${{ secrets.CLIENT_LIST }}
+          CLIENT_LIST_JSON=${{ secrets.CLIENT_LIST_JSON }}
+          EOF
+
+      - name: Run installer
+        env:
+          PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+          REGION: ${{ secrets.GCP_REGION }}
+          SERVICE_NAME: ${{ secrets.CLOUD_RUN_SERVICE }}
+          RUNTIME_SA_NAME: ${{ secrets.RUNTIME_SA }}
+          DEPLOY_SA_NAME: ${{ secrets.DEPLOY_SA }}
+        run: |
+          chmod +x infra/install.sh
+          ./infra/install.sh
+

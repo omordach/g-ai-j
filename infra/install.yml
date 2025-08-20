@@ -1,0 +1,251 @@
+---
+- name: One-click install for Gmail-AI-Jira on Google Cloud
+  hosts: localhost
+  gather_facts: false
+
+  vars:
+    # Variables may be passed by install.sh or environment
+    project_id: "{{ project_id | default(lookup('env','PROJECT_ID'), true) | default(env_kv.GCP_PROJECT_ID | default(''), true) }}"
+    region: "{{ region | default('europe-central2') }}"
+    service_name: "{{ service_name | default('g-ai-j') }}"
+    artifact_repo: "{{ artifact_repo | default('g-ai-j-repo') }}"
+    runtime_sa_name: "{{ runtime_sa_name | default('g-ai-j-runtime') }}"
+    deploy_sa_name: "{{ deploy_sa_name | default('g-ai-j-deployer') }}"
+    source_dir: "{{ source_dir | default('.') }}"
+    env_file_path: "{{ env_file_path | default('.env') }}"
+
+    # Firestore settings
+    firestore_location_id: "eur3"          # multi-region in EU (good for Warsaw)
+    firestore_type: "FIRESTORE_NATIVE"
+
+    # Required Google APIs
+    gcp_services:
+      - run.googleapis.com
+      - artifactregistry.googleapis.com
+      - secretmanager.googleapis.com
+      - pubsub.googleapis.com
+      - iam.googleapis.com
+      - cloudbuild.googleapis.com
+      - firestore.googleapis.com
+
+    # Secrets mirrored from your .env/.Cloud Run configuration
+    secret_keys:
+      - OPENAI_API_KEY
+      - GMAIL_TOKEN_FILE
+      - JIRA_URL
+      - JIRA_USER
+      - JIRA_API_TOKEN
+      - JIRA_PROJECT_KEY
+      - JIRA_CLIENT_FIELD_ID
+      - CLIENT_LIST
+      - EMAIL_SENDER
+      - GCP_PROJECT_ID
+      - GCP_FIRESTORE_COLLECTION
+      - PUBSUB_TOPIC
+      - GMAIL_USER_ID
+      - JIRA_ASSIGNEE
+      - DOMAIN_TO_CLIENT_JSON
+      - CLIENT_LIST_JSON
+      - ALLOWED_SENDERS_JSON
+
+  pre_tasks:
+    - name: Verify gcloud auth
+      shell: gcloud auth list --filter=status:ACTIVE --format='value(account)'
+      register: whoami
+      changed_when: false
+
+    - name: Ensure project id will be available
+      debug:
+        msg: "Using project_id='{{ project_id }}' (env fallback GCP_PROJECT_ID='{{ lookup('env','GCP_PROJECT_ID') }}')"
+
+    - name: Set gcloud defaults
+      shell: |
+        if [ -n "{{ project_id }}" ]; then gcloud config set project {{ project_id }}; fi
+        gcloud config set run/region {{ region }}
+      changed_when: false
+
+    - name: Read .env file if present
+      slurp:
+        src: "{{ env_file_path }}"
+      register: envfile
+      failed_when: false
+
+    - name: Parse .env into dict (KEY=VALUE only)
+      set_fact:
+        env_kv: >-
+          {{
+            dict(
+              (envfile.content | default('') | b64decode).splitlines()
+              | select("match","^[A-Za-z_][A-Za-z0-9_]*=.*$")
+              | map("regex_replace","^([A-Za-z_][A-Za-z0-9_]*)=(.*)$","\\1:::\\2")
+              | map("split",":::", 1)
+            )
+          }}
+
+    - name: Default project_id from env file if not provided
+      set_fact:
+        project_id: "{{ project_id if (project_id | length) > 0 else (env_kv.GCP_PROJECT_ID | default(env_kv.PROJECT_ID | default(''), true)) }}"
+
+    - name: Assert project_id present
+      assert:
+        that: project_id | length > 0
+        fail_msg: "PROJECT_ID is not set. Export PROJECT_ID or put GCP_PROJECT_ID in .env."
+
+  tasks:
+    - name: Enable required Google APIs (idempotent)
+      shell: gcloud services enable {{ item }} --project {{ project_id }}
+      loop: "{{ gcp_services }}"
+      changed_when: false
+
+    - name: Ensure Artifact Registry repository exists
+      shell: >
+        gcloud artifacts repositories describe {{ artifact_repo }}
+        --location {{ region }} --project {{ project_id }} ||
+        gcloud artifacts repositories create {{ artifact_repo }}
+        --repository-format=Docker --location {{ region }}
+        --description="Images for {{ service_name }}"
+      changed_when: false
+
+    - name: Create runtime service account (idempotent)
+      shell: >
+        gcloud iam service-accounts describe
+        {{ runtime_sa_name }}@{{ project_id }}.iam.gserviceaccount.com ||
+        gcloud iam service-accounts create {{ runtime_sa_name }}
+        --display-name "{{ service_name }} runtime SA"
+      changed_when: false
+
+    - name: Create deployer service account (idempotent)
+      shell: >
+        gcloud iam service-accounts describe
+        {{ deploy_sa_name }}@{{ project_id }}.iam.gserviceaccount.com ||
+        gcloud iam service-accounts create {{ deploy_sa_name }}
+        --display-name "{{ service_name }} deployer SA"
+      changed_when: false
+
+    - name: Grant runtime SA minimal roles
+      shell: |
+        gcloud projects add-iam-policy-binding {{ project_id }} \
+          --member=serviceAccount:{{ runtime_sa_name }}@{{ project_id }}.iam.gserviceaccount.com \
+          --role=roles/run.invoker
+        gcloud projects add-iam-policy-binding {{ project_id }} \
+          --member=serviceAccount:{{ runtime_sa_name }}@{{ project_id }}.iam.gserviceaccount.com \
+          --role=roles/secretmanager.secretAccessor
+        gcloud projects add-iam-policy-binding {{ project_id }} \
+          --member=serviceAccount:{{ runtime_sa_name }}@{{ project_id }}.iam.gserviceaccount.com \
+          --role=roles/pubsub.subscriber
+        gcloud projects add-iam-policy-binding {{ project_id }} \
+          --member=serviceAccount:{{ runtime_sa_name }}@{{ project_id }}.iam.gserviceaccount.com \
+          --role=roles/datastore.user
+      changed_when: false
+
+    - name: Ensure Firestore database exists (Native)
+      shell: |
+        gcloud firestore databases describe "(default)" --project {{ project_id }} >/dev/null 2>&1 || \
+        gcloud firestore databases create --project {{ project_id }} \
+          --location-id={{ firestore_location_id }} --type={{ firestore_type }}
+      changed_when: false
+
+    - name: Allow Gmail to publish to Pub/Sub topic (topic may be created below)
+      shell: |
+        gcloud pubsub topics add-iam-policy-binding "{{ env_kv.PUBSUB_TOPIC | default('gmail-events') }}" \
+          --member=serviceAccount:gmail-api-push@system.gserviceaccount.com \
+          --role=roles/pubsub.publisher \
+          --project {{ project_id }} || true
+      changed_when: false
+
+    - name: Create/Update Secret Manager secrets from .env keys (only when values present)
+      vars:
+        val: "{{ env_kv[item] | default('') }}"
+      loop: "{{ secret_keys }}"
+      when: val | length > 0
+      block:
+        - name: Ensure secret exists
+          shell: >
+            gcloud secrets describe {{ item }} --project {{ project_id }} ||
+            gcloud secrets create {{ item }} --replication-policy="automatic"
+          changed_when: false
+        - name: Add new secret version
+          shell: |
+            tmp=$(mktemp)
+            printf "%s" "{{ val | replace('\\n','\n') }}" > "$tmp"
+            gcloud secrets versions add {{ item }} --data-file="$tmp" --project {{ project_id }}
+          changed_when: true
+
+    - name: Grant runtime SA access to all secrets
+      shell: |
+        for s in {{ secret_keys | join(' ') }}; do
+          gcloud secrets add-iam-policy-binding "$s" \
+            --member="serviceAccount:{{ runtime_sa_name }}@{{ project_id }}.iam.gserviceaccount.com" \
+            --role="roles/secretmanager.secretAccessor" \
+            --project {{ project_id }} || true
+        done
+      changed_when: false
+
+    - name: Ensure Pub/Sub topic exists
+      shell: |
+        gcloud pubsub topics describe "{{ env_kv.PUBSUB_TOPIC | default('gmail-events') }}" --project {{ project_id }} ||
+        gcloud pubsub topics create "{{ env_kv.PUBSUB_TOPIC | default('gmail-events') }}" --project {{ project_id }}
+      changed_when: false
+
+    - name: Ensure Pub/Sub subscription exists (initially pull; we switch to push post-deploy)
+      shell: |
+        gcloud pubsub subscriptions describe "{{ (env_kv.PUBSUB_TOPIC | default('gmail-events')) }}-sub" --project {{ project_id }} ||
+        gcloud pubsub subscriptions create "{{ (env_kv.PUBSUB_TOPIC | default('gmail-events')) }}-sub" \
+          --topic "{{ env_kv.PUBSUB_TOPIC | default('gmail-events') }}" --project {{ project_id }}
+      changed_when: false
+
+    - name: Build & push container image with Cloud Build
+      shell: |
+        export IMAGE="{{ region }}-docker.pkg.dev/{{ project_id }}/{{ artifact_repo }}/{{ service_name }}:$(date +%Y%m%d%H%M%S)"
+        echo "$IMAGE" > /tmp/cr_image.txt
+        gcloud builds submit "{{ source_dir }}" --tag "$IMAGE" --project "{{ project_id }}"
+      changed_when: true
+
+    - name: Read built image tag
+      shell: cat /tmp/cr_image.txt
+      register: img
+      changed_when: false
+
+    - name: Deploy Cloud Run service (env via secrets; PYTHONPATH plain env)
+      shell: >
+        gcloud run deploy {{ service_name }}
+        --image "{{ img.stdout }}"
+        --platform managed
+        --region {{ region }}
+        --project {{ project_id }}
+        --service-account {{ runtime_sa_name }}@{{ project_id }}.iam.gserviceaccount.com
+        --allow-unauthenticated
+        --cpu 1 --memory 512Mi --timeout 600s --min-instances 0 --max-instances 5
+        --set-env-vars PYTHONPATH=/app/src
+        {% for k in secret_keys %}
+        {% if env_kv[k] is defined and (env_kv[k] | length) > 0 %}
+        --set-secrets {{ k }}={{ k }}:latest
+        {% endif %}
+        {% endfor %}
+      changed_when: true
+
+    - name: Get Cloud Run URL
+      shell: gcloud run services describe {{ service_name }} --region {{ region }} --format='value(status.url)'
+      register: svc_url
+      changed_when: false
+
+    - name: Convert subscription to Push with OIDC auth (idempotent)
+      shell: |
+        gcloud pubsub subscriptions update "{{ (env_kv.PUBSUB_TOPIC | default('gmail-events')) }}-sub" \
+          --push-endpoint="{{ svc_url.stdout }}/pubsub/push" \
+          --push-auth-service-account="{{ runtime_sa_name }}@{{ project_id }}.iam.gserviceaccount.com" \
+          --project {{ project_id }}
+      changed_when: false
+
+    - name: Output summary
+      debug:
+        msg: |
+          ✅ Deployed {{ service_name }} at: {{ svc_url.stdout }}
+          ✅ Pub/Sub topic: {{ env_kv.PUBSUB_TOPIC | default('gmail-events') }}
+          ✅ Push subscription: {{ (env_kv.PUBSUB_TOPIC | default('gmail-events')) }}-sub → {{ svc_url.stdout }}/pubsub/push
+          ✅ Firestore ({{ firestore_type }}) initialized at {{ firestore_location_id }}
+
+          Notes:
+          - For PERSONAL Gmail: ensure GMAIL_TOKEN_FILE secret contains a refresh-token JSON.
+          - For Workspace + domain-wide delegation: adjust app to use a service account flow.
+
