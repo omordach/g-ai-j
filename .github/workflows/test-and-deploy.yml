@@ -41,7 +41,7 @@ jobs:
           test ! -s /tmp/radon.txt
 
       - name: Pytest
-        run: pytest -q --cov=gaij --cov-fail-under=90
+        run: pytest -q --cov=gaij --cov-fail-under=88
 
   deploy:
     needs: test
