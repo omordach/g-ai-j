@@ -1,8 +1,8 @@
 import base64
-from typing import Any, List, Tuple
+from typing import Any
 
 
-def render_html(html: str, inline_parts: List[dict[str, Any]], fmt: str = "pdf") -> Tuple[bytes, str]:
+def render_html(html: str, inline_parts: list[dict[str, Any]], fmt: str = "pdf") -> tuple[bytes, str]:
     """Render HTML to PDF/PNG bytes embedding inline images.
 
     This is a lightweight stand-in for real rendering libraries. It simply

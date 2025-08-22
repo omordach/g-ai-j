@@ -9,9 +9,9 @@ from typing import Any
 from flask import Flask, request
 
 from . import firestore_state, gmail_client, jira_client
-from .html_to_adf import build_adf_from_html, prepend_note
-from .html_renderer import render_html
 from .gpt_agent import gpt_classify_issue
+from .html_renderer import render_html
+from .html_to_adf import build_adf_from_html, prepend_note
 from .logger_setup import logger
 from .settings import settings
 

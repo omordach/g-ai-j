@@ -1,5 +1,6 @@
 import re
-from typing import Any, Iterable
+from collections.abc import Iterable
+from typing import Any
 
 from bs4 import BeautifulSoup, NavigableString, Tag
 
@@ -96,11 +97,7 @@ def _convert_element(elem: Any, inline_map: dict[str, str]) -> list[dict[str, An
 def build_adf_from_html(html: str, inline_map: dict[str, str] | None = None) -> dict[str, Any]:
     inline_map = inline_map or {}
     soup = BeautifulSoup(html or "", "html.parser")
-    body: Iterable[Any]
-    if soup.body:
-        body = soup.body.contents
-    else:
-        body = soup.contents
+    body: Iterable[Any] = soup.body.contents if soup.body else soup.contents
     content: list[dict[str, Any]] = []
     for elem in body:
         content.extend(_convert_element(elem, inline_map))
@@ -111,6 +108,7 @@ def build_adf_from_html(html: str, inline_map: dict[str, str] | None = None) -> 
 
 def prepend_note(adf: dict[str, Any], note: str) -> dict[str, Any]:
     content = [
-        {"type": "paragraph", "content": [{"type": "text", "text": note}]}
-    ] + list(adf.get("content", []))
+        {"type": "paragraph", "content": [{"type": "text", "text": note}]},
+        *adf.get("content", []),
+    ]
     return {"type": "doc", "version": 1, "content": content}
