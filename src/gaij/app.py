@@ -9,6 +9,8 @@ from typing import Any
 from flask import Flask, request
 
 from . import firestore_state, gmail_client, jira_client
+from .html_to_adf import build_adf_from_html, prepend_note
+from .html_renderer import render_html
 from .gpt_agent import gpt_classify_issue
 from .logger_setup import logger
 from .settings import settings
@@ -117,7 +119,32 @@ def process_message(message_id: str) -> None:
         return
 
     issue_type, client = classify_client_and_issue(msg, sender_addr)
-    adf = jira_client.build_adf(msg.get("body_text", ""))
+
+    html = msg.get("body_html", msg.get("body_text", ""))
+    inline_map = msg.get("inline_map", {})
+    adf = build_adf_from_html(html, inline_map)
+
+    attachments = list(msg.get("attachments", []))
+    inline_parts = msg.get("inline_parts", [])
+
+    if settings.preserve_html_render:
+        render_bytes, render_name = render_html(
+            html, inline_parts, settings.html_render_format
+        )
+        attachments.append(
+            {
+                "filename": render_name,
+                "mime_type": "application/pdf"
+                if settings.html_render_format == "pdf"
+                else "image/png",
+                "data_bytes": render_bytes,
+                "is_inline": False,
+                "content_id": None,
+            }
+        )
+        adf = prepend_note(
+            adf, f"Full-fidelity email rendering attached: {render_name}"
+        )
 
     sanitized_msg_id = sanitize_msg_id(msg.get("message_id", "") or "")
     labels = build_labels(sanitized_msg_id)
@@ -131,7 +158,6 @@ def process_message(message_id: str) -> None:
     )
 
     if key:
-        attachments = msg.get("attachments", [])
         results = jira_client.upload_attachments(key, attachments)
         if results:
             new_adf = jira_client.build_adf_with_attachment_list(adf, results)

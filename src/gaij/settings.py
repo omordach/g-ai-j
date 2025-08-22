@@ -51,6 +51,11 @@ class Settings:
         os.getenv("ATTACH_INLINE_IMAGES", "true").lower() == "true"
     )
 
+    preserve_html_render: bool = (
+        os.getenv("PRESERVE_HTML_RENDER", "true").lower() == "true"
+    )
+    html_render_format: str = os.getenv("HTML_RENDER_FORMAT", "pdf")
+
     openai_api_key: str = os.environ["OPENAI_API_KEY"]
     email_sender: str | None = os.getenv("EMAIL_SENDER")
 

@@ -74,6 +74,8 @@ def firestore_state_module(monkeypatch):
     )
     monkeypatch.setenv("ATTACHMENT_UPLOAD_ENABLED", "true")
     monkeypatch.setenv("ATTACH_INLINE_IMAGES", "true")
+    monkeypatch.setenv("PRESERVE_HTML_RENDER", "true")
+    monkeypatch.setenv("HTML_RENDER_FORMAT", "pdf")
     import gaij.firestore_state as firestore_state
     import gaij.settings as settings
     importlib.reload(settings)
@@ -106,6 +108,8 @@ def app_setup(monkeypatch, firestore_state_module):
     )
     monkeypatch.setenv("ATTACHMENT_UPLOAD_ENABLED", "true")
     monkeypatch.setenv("ATTACH_INLINE_IMAGES", "true")
+    monkeypatch.setenv("PRESERVE_HTML_RENDER", "true")
+    monkeypatch.setenv("HTML_RENDER_FORMAT", "pdf")
     domain_map = {"oetraining.com": "OETraining"}
     monkeypatch.setenv("DOMAIN_TO_CLIENT_JSON", json.dumps(domain_map))
 
