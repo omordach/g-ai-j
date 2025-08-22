@@ -58,6 +58,46 @@ def create_jira_ticket(*args: Any, **kwargs: Any) -> str | None:
     return create_ticket(*args, **kwargs)
 
 
+def _upload_one_attachment(
+    att: dict[str, Any],
+    url: str,
+    auth: HTTPBasicAuth,
+    headers: dict[str, str],
+    allowed: set[str],
+    max_bytes: int,
+    issue_key: str,
+) -> tuple[str, str]:
+    """Return (filename, status) after attempting a single upload."""
+    name = att.get("filename", "attachment")
+    data = att.get("data_bytes", b"")
+    mime = att.get("mime_type", "application/octet-stream")
+
+    if att.get("is_inline") and not settings.attach_inline_images:
+        logger.info("Skipping inline attachment %s", name)
+        return name, "skipped inline"
+    if len(data) > max_bytes:
+        logger.warning("Skipping oversize attachment %s", name)
+        return name, "oversize"
+    if allowed and mime not in allowed:
+        logger.warning("Skipping disallowed attachment %s", name)
+        return name, "disallowed"
+
+    files = {"file": (name, data, mime)}
+    try:
+        resp = requests.post(url, auth=auth, headers=headers, files=files, timeout=10)
+    except requests.RequestException as exc:
+        logger.error("Error uploading attachment %s: %s", name, exc)
+        return name, "error"
+
+    if resp.status_code in (200, 201):
+        logger.info("Uploaded attachment %s to %s", name, issue_key)
+        return name, "uploaded"
+    logger.error(
+        "Failed to upload attachment %s: %s %s", name, resp.status_code, resp.text
+    )
+    return name, f"failed {resp.status_code}"
+
+
 def upload_attachments(issue_key: str, attachments: list[dict[str, Any]]) -> dict[str, str]:
     """Upload attachments to a Jira issue and return per-file results."""
     results: dict[str, str] = {}
@@ -71,32 +111,10 @@ def upload_attachments(issue_key: str, attachments: list[dict[str, Any]]) -> dic
     max_bytes = settings.jira_max_attachment_bytes
 
     for att in attachments:
-        name = att.get("filename", "attachment")
-        data = att.get("data_bytes", b"")
-        mime = att.get("mime_type", "application/octet-stream")
-        if att.get("is_inline") and not settings.attach_inline_images:
-            logger.info("Skipping inline attachment %s", name)
-            continue
-        if len(data) > max_bytes:
-            logger.warning("Skipping oversize attachment %s", name)
-            continue
-        if allowed and mime not in allowed:
-            logger.warning("Skipping disallowed attachment %s", name)
-            continue
-        files = {"file": (name, data, mime)}
-        try:
-            resp = requests.post(url, auth=auth, headers=headers, files=files, timeout=10)
-            if resp.status_code in (200, 201):
-                results[name] = "uploaded"
-                logger.info("Uploaded attachment %s to %s", name, issue_key)
-            else:
-                results[name] = f"failed {resp.status_code}"
-                logger.error(
-                    "Failed to upload attachment %s: %s %s", name, resp.status_code, resp.text
-                )
-        except requests.RequestException as exc:
-            results[name] = "error"
-            logger.error("Error uploading attachment %s: %s", name, exc)
+        name, status = _upload_one_attachment(
+            att, url, auth, headers, allowed, max_bytes, issue_key
+        )
+        results[name] = status
     return results
 
 
