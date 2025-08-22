@@ -1,6 +1,7 @@
 import base64
 import json
 import os
+import re
 from collections.abc import Iterable
 from typing import Any
 
@@ -73,6 +74,113 @@ def extract_headers(headers: list[dict[str, str]]) -> dict[str, str]:
     }
 
 
+def _extract_html(payload: dict[str, Any]) -> str:
+    """Return the first HTML body found in the payload tree."""
+    mime_type = payload.get("mimeType", "")
+    body_data = payload.get("body", {}).get("data")
+    if mime_type.startswith("multipart"):
+        for part in payload.get("parts", []):
+            html = _extract_html(part)
+            if html:
+                return html
+    elif body_data and mime_type == "text/html":
+        try:
+            return base64.urlsafe_b64decode(body_data).decode("utf-8", errors="ignore")
+        except Exception:  # pragma: no cover - defensive
+            return ""
+    return ""
+
+
+def _normalize_filename(name: str, index: int, mime_type: str) -> str:
+    """Return a safe filename, generating one if missing."""
+    name = re.sub(r"[^A-Za-z0-9._-]+", "_", name or "").strip("._")
+    if not name:
+        ext = mime_type.split("/")[-1] if "/" in mime_type else "bin"
+        name = f"attachment_{index}.{ext}"
+    return name
+
+
+def extract_attachments(message_json: dict[str, Any]) -> list[dict[str, Any]]:
+    """Extract attachments including inline images from a Gmail message."""
+    payload = message_json.get("payload", {})
+    html_body = _extract_html(payload)
+    cid_refs: set[str] = set()
+    if html_body:
+        soup = BeautifulSoup(html_body, "html.parser")
+        for tag in soup.find_all(src=True):
+            src = tag.get("src", "")
+            if src.startswith("cid:"):
+                cid_refs.add(src[4:])
+
+    attachments: list[dict[str, Any]] = []
+    service = None
+
+    def walk(part: dict[str, Any]) -> None:
+        nonlocal service
+        mime_type = part.get("mimeType", "application/octet-stream")
+        filename = part.get("filename", "")
+        body = part.get("body", {})
+        attachment_id = body.get("attachmentId")
+        headers = {h.get("name", "").lower(): h.get("value", "") for h in part.get("headers", [])}
+        if attachment_id or filename:
+            if attachment_id:
+                if service is None:
+                    service = get_gmail_service()
+                try:
+                    resp = (
+                        service.users()
+                        .messages()
+                        .attachments()
+                        .get(
+                            userId=settings.gmail_user_id,
+                            messageId=message_json.get("id", ""),
+                            id=attachment_id,
+                        )
+                        .execute()
+                    )
+                    data = resp.get("data")
+                    data_bytes = (
+                        base64.urlsafe_b64decode(data) if data else b""
+                    )
+                except HttpError as err:
+                    logger.error("Gmail API error fetching attachment %s: %s", attachment_id, err)
+                    data_bytes = b""
+                except Exception as err:  # pragma: no cover - defensive
+                    logger.error("Unexpected error fetching attachment %s: %s", attachment_id, err)
+                    data_bytes = b""
+            else:
+                data = body.get("data")
+                data_bytes = (
+                    base64.urlsafe_b64decode(data) if data else b""
+                )
+
+            cid = headers.get("content-id")
+            if cid:
+                cid = cid.strip("<>")
+            content_disp = headers.get("content-disposition", "")
+            is_inline = bool(
+                (cid and cid in cid_refs)
+                or ("inline" in content_disp.lower())
+            )
+
+            norm_name = _normalize_filename(filename, len(attachments), mime_type)
+            attachments.append(
+                {
+                    "filename": norm_name,
+                    "mime_type": mime_type,
+                    "data_bytes": data_bytes,
+                    "is_inline": is_inline,
+                    "content_id": cid,
+                }
+            )
+
+        for sub in part.get("parts", []):
+            walk(sub)
+
+    walk(payload)
+    return attachments
+
+
 def list_new_message_ids_since(
     start_history_id: int,
     end_history_id: int,
@@ -128,8 +236,8 @@ def list_new_message_ids_since(
         )
 
 
-def get_message(message_id: str, format: str = "full") -> dict[str, str]:
-    """Return parsed details for a Gmail message."""
+def get_message(message_id: str, format: str = "full") -> dict[str, Any]:
+    """Return parsed details for a Gmail message including attachments."""
     service = get_gmail_service()
     user_id = settings.gmail_user_id
     try:
@@ -149,6 +257,7 @@ def get_message(message_id: str, format: str = "full") -> dict[str, str]:
     payload = msg.get("payload", {})
     headers = extract_headers(payload.get("headers", []))
     body_text = extract_body(payload)
+    attachments = extract_attachments(msg)
 
     return {
         "from": headers.get("From", ""),
@@ -156,6 +265,7 @@ def get_message(message_id: str, format: str = "full") -> dict[str, str]:
         "date": headers.get("Date", ""),
         "message_id": headers.get("Message-ID", ""),
         "body_text": body_text,
+        "attachments": attachments,
     }
 
 

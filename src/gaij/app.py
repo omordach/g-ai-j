@@ -131,6 +131,12 @@ def process_message(message_id: str) -> None:
     )
 
     if key:
+        attachments = msg.get("attachments", [])
+        results = jira_client.upload_attachments(key, attachments)
+        if results:
+            new_adf = jira_client.build_adf_with_attachment_list(adf, results)
+            if new_adf != adf:
+                jira_client.update_issue_description(key, new_adf)
         firestore_state.mark_processed(message_id)
     else:
         logger.error(

@@ -12,6 +12,8 @@ This repository includes a pytest suite that exercises the core workflows of
   field/label formatting when creating issues.
 * **Firestore state** – reading/writing `last_history_id`, tracking processed
   message IDs with pruning.
+* **Jira attachments** – uploading file and inline image attachments, skipping
+  oversized or disallowed files, and handling partial failures.
 * **Gmail watch renewal** – registering a watch and renewing when expiration is
   near.
 
@@ -36,3 +38,10 @@ docker run --rm -v "$PWD":/app g-ai-j pytest
 
 Configure the CI job to install dependencies and execute `pytest` in the project
 root.  No network access or secrets are required for the tests.
+
+## Environment variables for attachments
+
+* `JIRA_MAX_ATTACHMENT_BYTES` – maximum size of each attachment (default 10MB).
+* `ATTACHMENT_ALLOWED_MIME_JSON` – JSON list of allowed MIME types.
+* `ATTACHMENT_UPLOAD_ENABLED` – set to "false" to disable uploads.
+* `ATTACH_INLINE_IMAGES` – set to "false" to skip inline images.

@@ -56,3 +56,78 @@ def create_ticket(summary: str, adf_description: dict[str, Any], client: str, is
 def create_jira_ticket(*args: Any, **kwargs: Any) -> str | None:
     """Backward-compatible wrapper for :func:`create_ticket`."""
     return create_ticket(*args, **kwargs)
+
+
+def upload_attachments(issue_key: str, attachments: list[dict[str, Any]]) -> dict[str, str]:
+    """Upload attachments to a Jira issue and return per-file results."""
+    results: dict[str, str] = {}
+    if not settings.attachment_upload_enabled or not attachments:
+        return results
+
+    url = f"{settings.jira_url}/rest/api/3/issue/{issue_key}/attachments"
+    auth = HTTPBasicAuth(settings.jira_user, settings.jira_api_token)
+    headers = {"X-Atlassian-Token": "no-check"}
+    allowed = set(settings.attachment_allowed_mime_json)
+    max_bytes = settings.jira_max_attachment_bytes
+
+    for att in attachments:
+        name = att.get("filename", "attachment")
+        data = att.get("data_bytes", b"")
+        mime = att.get("mime_type", "application/octet-stream")
+        if att.get("is_inline") and not settings.attach_inline_images:
+            logger.info("Skipping inline attachment %s", name)
+            continue
+        if len(data) > max_bytes:
+            logger.warning("Skipping oversize attachment %s", name)
+            continue
+        if allowed and mime not in allowed:
+            logger.warning("Skipping disallowed attachment %s", name)
+            continue
+        files = {"file": (name, data, mime)}
+        try:
+            resp = requests.post(url, auth=auth, headers=headers, files=files, timeout=10)
+            if resp.status_code in (200, 201):
+                results[name] = "uploaded"
+                logger.info("Uploaded attachment %s to %s", name, issue_key)
+            else:
+                results[name] = f"failed {resp.status_code}"
+                logger.error(
+                    "Failed to upload attachment %s: %s %s", name, resp.status_code, resp.text
+                )
+        except requests.RequestException as exc:
+            results[name] = "error"
+            logger.error("Error uploading attachment %s: %s", name, exc)
+    return results
+
+
+def build_adf_with_attachment_list(
+    base_adf: dict[str, Any], uploaded_results: dict[str, str]
+) -> dict[str, Any]:
+    """Append an attachment list to an existing ADF document."""
+    names = [n for n, status in uploaded_results.items() if status == "uploaded"]
+    if not names:
+        return base_adf
+    content = list(base_adf.get("content", []))
+    content.append({"type": "paragraph", "content": [{"type": "text", "text": "Attachments"}]})
+    for name in names:
+        content.append({"type": "paragraph", "content": [{"type": "text", "text": name}]})
+    return {"type": "doc", "version": 1, "content": content}
+
+
+def update_issue_description(issue_key: str, adf_description: dict[str, Any]) -> None:
+    """Update the Jira issue description with the provided ADF."""
+    url = f"{settings.jira_url}/rest/api/3/issue/{issue_key}"
+    auth = HTTPBasicAuth(settings.jira_user, settings.jira_api_token)
+    headers = {"Accept": "application/json", "Content-Type": "application/json"}
+    payload = {"fields": {"description": adf_description}}
+    try:
+        resp = requests.put(url, auth=auth, headers=headers, json=payload, timeout=10)
+        if resp.status_code not in (200, 204):
+            logger.error(
+                "Failed to update Jira issue %s description: %s %s",
+                issue_key,
+                resp.status_code,
+                resp.text,
+            )
+    except requests.RequestException as exc:  # pragma: no cover - network safety
+        logger.error("Error updating Jira issue %s description: %s", issue_key, exc)
