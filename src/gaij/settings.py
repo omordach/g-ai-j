@@ -33,6 +33,24 @@ class Settings:
     gcp_firestore_collection: str = os.getenv("GCP_FIRESTORE_COLLECTION", "gaij_state")
     pubsub_topic: str | None = os.getenv("PUBSUB_TOPIC")
 
+    jira_max_attachment_bytes: int = int(
+        os.getenv("JIRA_MAX_ATTACHMENT_BYTES", str(10 * 1024 * 1024))
+    )
+    attachment_allowed_mime_json: list[str] = field(
+        default_factory=lambda: json.loads(
+            os.getenv(
+                "ATTACHMENT_ALLOWED_MIME_JSON",
+                '["application/pdf","image/png","image/jpeg","application/vnd.openxmlformats-officedocument.wordprocessingml.document","application/msword"]',
+            )
+        )
+    )
+    attachment_upload_enabled: bool = (
+        os.getenv("ATTACHMENT_UPLOAD_ENABLED", "true").lower() == "true"
+    )
+    attach_inline_images: bool = (
+        os.getenv("ATTACH_INLINE_IMAGES", "true").lower() == "true"
+    )
+
     openai_api_key: str = os.environ["OPENAI_API_KEY"]
     email_sender: str | None = os.getenv("EMAIL_SENDER")
 

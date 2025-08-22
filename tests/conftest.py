@@ -59,6 +59,21 @@ def firestore_state_module(monkeypatch):
     monkeypatch.setenv("JIRA_PROJECT_KEY", "UIV4")
     monkeypatch.setenv("JIRA_CLIENT_FIELD_ID", "customfield_10000")
     monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
+    monkeypatch.setenv("JIRA_MAX_ATTACHMENT_BYTES", "10485760")
+    monkeypatch.setenv(
+        "ATTACHMENT_ALLOWED_MIME_JSON",
+        json.dumps(
+            [
+                "application/pdf",
+                "image/png",
+                "image/jpeg",
+                "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                "application/msword",
+            ]
+        ),
+    )
+    monkeypatch.setenv("ATTACHMENT_UPLOAD_ENABLED", "true")
+    monkeypatch.setenv("ATTACH_INLINE_IMAGES", "true")
     import gaij.firestore_state as firestore_state
     import gaij.settings as settings
     importlib.reload(settings)
@@ -76,6 +91,21 @@ def app_setup(monkeypatch, firestore_state_module):
     monkeypatch.setenv("JIRA_ASSIGNEE", "assignee@example.com")
     monkeypatch.setenv("JIRA_CLIENT_FIELD_ID", "customfield_10000")
     monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
+    monkeypatch.setenv("JIRA_MAX_ATTACHMENT_BYTES", "10485760")
+    monkeypatch.setenv(
+        "ATTACHMENT_ALLOWED_MIME_JSON",
+        json.dumps(
+            [
+                "application/pdf",
+                "image/png",
+                "image/jpeg",
+                "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                "application/msword",
+            ]
+        ),
+    )
+    monkeypatch.setenv("ATTACHMENT_UPLOAD_ENABLED", "true")
+    monkeypatch.setenv("ATTACH_INLINE_IMAGES", "true")
     domain_map = {"oetraining.com": "OETraining"}
     monkeypatch.setenv("DOMAIN_TO_CLIENT_JSON", json.dumps(domain_map))
 
