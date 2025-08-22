@@ -3,9 +3,10 @@ import json
 import os
 import re
 from collections.abc import Iterable
-from typing import Any
+from typing import Any, cast
 
 from bs4 import BeautifulSoup
+from bs4.element import Tag
 from google.oauth2.credentials import Credentials
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
@@ -107,10 +108,10 @@ def extract_attachments(message_json: dict[str, Any]) -> list[dict[str, Any]]:
     cid_refs: set[str] = set()
     if html_body:
         soup = BeautifulSoup(html_body, "html.parser")
-        for tag in soup.find_all(src=True):
-            src = tag.get("src", "")
-            if src.startswith("cid:"):
-                cid_refs.add(src[4:])
+        for tag in cast("Iterable[Tag]", soup.find_all(src=True)):
+            src_attr = tag.get("src")
+            if isinstance(src_attr, str) and src_attr.startswith("cid:"):
+                cid_refs.add(src_attr[4:])
 
     attachments: list[dict[str, Any]] = []
     service = None
