@@ -2,7 +2,8 @@ import re
 from collections.abc import Iterable
 from typing import Any
 
-from bs4 import BeautifulSoup, NavigableString, Tag
+from bs4 import BeautifulSoup, Tag
+from bs4.element import NavigableString
 
 PLACEHOLDER_RE = re.compile(r"__INLINE_IMAGE__\[([^\]]+)\]__")
 
@@ -42,7 +43,9 @@ def _convert_inline(node: Any, inline_map: dict[str, str], marks: list[dict[str,
         elif name == "u":
             new_marks.append({"type": "underline"})
         elif name == "a":
-            new_marks.append({"type": "link", "attrs": {"href": node.get("href", "")}})
+            href_attr = node.get("href")
+            href = href_attr if isinstance(href_attr, str) else ""
+            new_marks.append({"type": "link", "attrs": {"href": href}})
         for child in node.children:
             result.extend(_convert_inline(child, inline_map, new_marks))
     return result
@@ -78,7 +81,8 @@ def _convert_element(elem: Any, inline_map: dict[str, str]) -> list[dict[str, An
     if name == "li":
         return [{"type": "paragraph", "content": _convert_inline(elem, inline_map)}]
     if name == "img":
-        src = elem.get("src", "")
+        src_attr = elem.get("src")
+        src = src_attr if isinstance(src_attr, str) else ""
         m = PLACEHOLDER_RE.search(src)
         if m:
             cid = m.group(1)
