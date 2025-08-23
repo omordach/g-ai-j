@@ -31,6 +31,7 @@
     # Secrets mirrored from your .env/.Cloud Run configuration
     secret_keys:
       - OPENAI_API_KEY
+      - OPENAI_MODEL
       - GMAIL_TOKEN_FILE
       - JIRA_URL
       - JIRA_USER
