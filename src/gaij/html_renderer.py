@@ -19,7 +19,17 @@ def _simple_pdf_bytes(text: str) -> bytes:
 
     # Escape characters that have a special meaning in PDF text objects.
     esc = text.replace("\\", r"\\\\").replace("(", r"\\(").replace(")", r"\\)")
-    content = f"BT /F1 12 Tf 72 720 Td ({esc}) Tj ET"
+
+    # PDF ``Tj`` shows text only on the current line.  To preserve line
+    # breaks from the input we split the text and move the cursor down after
+    # each line using ``Td`` before rendering the next one.
+    lines = esc.split("\n")
+    parts: list[str] = []
+    for i, line in enumerate(lines):
+        if i:
+            parts.append("0 -14 Td")  # Move to the next line.
+        parts.append(f"({line}) Tj")
+    content = "BT /F1 12 Tf 72 720 Td " + " ".join(parts) + " ET"
 
     objects: list[str] = [
         "<< /Type /Catalog /Pages 2 0 R >>",
