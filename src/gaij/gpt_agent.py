@@ -1,14 +1,22 @@
 # gpt_agent.py
+"""OpenAI-based classification helper."""
 
 import json
-from typing import Any, Optional, cast
+from typing import Any, cast
 
 from openai import OpenAI
 
 from .logger_setup import logger
 from .settings import settings
 
-client = OpenAI(api_key=settings.openai_api_key)
+_client: OpenAI | None = None
+
+
+def _get_client() -> OpenAI:
+    global _client
+    if _client is None:
+        _client = OpenAI(api_key=settings.openai_api_key)
+    return _client
 
 
 def gpt_classify_issue(subject: str, body: str) -> dict[str, Any] | None:
@@ -25,8 +33,9 @@ Respond only with a JSON object, nothing else.
 """
 
     try:
+        client = _get_client()
         response = client.chat.completions.create(
-            model="gpt-4",
+            model=settings.openai_model,
             messages=[{"role": "user", "content": prompt}],
             temperature=0.2,
         )

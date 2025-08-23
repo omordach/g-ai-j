@@ -101,6 +101,7 @@ class Settings:
     html_render_format: str = os.getenv("HTML_RENDER_FORMAT", "pdf")
 
     openai_api_key: str = require_env("OPENAI_API_KEY")
+    openai_model: str = os.getenv("OPENAI_MODEL", "gpt-4")
     email_sender: str | None = os.getenv("EMAIL_SENDER")
 
 

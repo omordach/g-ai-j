@@ -71,6 +71,7 @@ DOMAIN_TO_CLIENT_JSON={"example.com":"Example"}
 CLIENT_LIST_JSON=["Example","N/A"]
 ALLOWED_SENDERS_JSON=["forwarder@example.com"]
 OPENAI_API_KEY=...
+OPENAI_MODEL=gpt-4
 
 ```
 
