@@ -32,9 +32,9 @@ def get_gmail_service() -> Any:
         if token_json.startswith("{"):
             try:
                 creds = Credentials.from_authorized_user_info(json.loads(token_json), SCOPES)  # type: ignore[no-untyped-call]
-            except json.JSONDecodeError:
+            except json.JSONDecodeError as err:
                 logger.error("Failed to parse JSON from GMAIL_TOKEN_FILE")
-                raise FileNotFoundError("Invalid GMAIL_TOKEN_FILE content")
+                raise FileNotFoundError("Invalid GMAIL_TOKEN_FILE content") from err
         else:
             logger.error(
                 "Gmail token not found. Checked path %s and GMAIL_TOKEN_FILE env.",
