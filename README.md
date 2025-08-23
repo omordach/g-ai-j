@@ -88,8 +88,15 @@ echo $GMAIL_TOKEN_FILE_PATH
 
 If you prefer to inject the token content directly, set
 `GMAIL_TOKEN_FILE` to the JSON contents and the application will write
-the file to `GMAIL_TOKEN_FILE_PATH` on boot. A typical configuration
-inside Docker is:
+the file to `GMAIL_TOKEN_FILE_PATH` on boot. The value must be valid
+JSON matching the format of a standard Gmail OAuth token file, for
+example:
+
+```json
+{"token":"...","refresh_token":"...","token_uri":"https://oauth2.googleapis.com/token","client_id":"...","client_secret":"...","scopes":["https://www.googleapis.com/auth/gmail.readonly"]}
+```
+
+A typical configuration inside Docker is:
 
 ```
 export GMAIL_TOKEN_FILE_PATH=/app/token.json
