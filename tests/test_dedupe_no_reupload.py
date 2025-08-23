@@ -25,10 +25,14 @@ def test_dedupe_no_reupload(app_setup, monkeypatch):
     uploaded = []
 
     def fake_post(url, auth=None, headers=None, files=None, timeout=None):
-        uploaded.append(files["file"][0])
+        name = files["file"][0]
+        uploaded.append(name)
+        idx = len(uploaded)
         class R:
             status_code = 200
             text = ""
+            def json(self):
+                return [{"id": str(idx)}]
         return R()
 
     monkeypatch.setattr(jira_client.requests, "post", fake_post)

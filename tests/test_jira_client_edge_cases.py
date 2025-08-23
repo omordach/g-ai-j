@@ -26,6 +26,8 @@ def test_upload_attachments_inline_and_error(monkeypatch, app_setup):
         class R:
             status_code = 200
             text = ""
+            def json(self):
+                return [{"id": "1"}]
         return R()
 
     monkeypatch.setattr(jira_client.requests, "post", fake_post)
@@ -45,9 +47,10 @@ def test_upload_attachments_inline_and_error(monkeypatch, app_setup):
             "content_id": None,
         },
     ]
-    results = jira_client.upload_attachments("JIRA-1", attachments)
+    results, id_map = jira_client.upload_attachments("JIRA-1", attachments)
     assert results["inline.png"] == "skipped inline"
     assert results["error.png"] == "error"
+    assert id_map == {}
 
 
 def test_update_issue_description_error(monkeypatch, app_setup):
