@@ -108,68 +108,74 @@ def healthz() -> tuple[str, int]:
 
 
 def process_message(message_id: str) -> None:
-    if firestore_state.is_processed(message_id):
+    if not firestore_state.claim_message(message_id):
         logger.info("Message %s already processed", message_id)
         return
 
-    msg = gmail_client.get_message(message_id)
-    sender_full = msg.get("from", "")
-    sender_addr = parseaddr(sender_full)[1].lower()
-    if not is_sender_allowed(sender_addr, sender_full):
-        return
+    try:
+        msg = gmail_client.get_message(message_id)
+        sender_full = msg.get("from", "")
+        sender_addr = parseaddr(sender_full)[1].lower()
+        if not is_sender_allowed(sender_addr, sender_full):
+            firestore_state.unclaim_message(message_id)
+            return
 
-    issue_type, client = classify_client_and_issue(msg, sender_addr)
+        issue_type, client = classify_client_and_issue(msg, sender_addr)
 
-    html = msg.get("body_html", msg.get("body_text", ""))
-    inline_map = msg.get("inline_map", {})
-    adf = build_adf_from_html(html, inline_map)
+        html = msg.get("body_html", msg.get("body_text", ""))
+        inline_map = msg.get("inline_map", {})
+        adf = build_adf_from_html(html, inline_map)
 
-    attachments = list(msg.get("attachments", []))
-    inline_parts = msg.get("inline_parts", [])
+        attachments = list(msg.get("attachments", []))
+        inline_parts = msg.get("inline_parts", [])
 
-    if settings.preserve_html_render:
-        render_bytes, render_name = render_html(
-            html, inline_parts, settings.html_render_format
+        if settings.preserve_html_render:
+            render_bytes, render_name = render_html(
+                html, inline_parts, settings.html_render_format
+            )
+            attachments.append(
+                {
+                    "filename": render_name,
+                    "mime_type": "application/pdf"
+                    if settings.html_render_format == "pdf"
+                    else "image/png",
+                    "data_bytes": render_bytes,
+                    "is_inline": False,
+                    "content_id": None,
+                }
+            )
+            adf = prepend_note(
+                adf, f"Full-fidelity email rendering attached: {render_name}"
+            )
+
+        sanitized_msg_id = sanitize_msg_id(msg.get("message_id", "") or "")
+        labels = build_labels(sanitized_msg_id)
+
+        key = jira_client.create_ticket(
+            msg.get("subject", "(No Subject)"),
+            adf,
+            client,
+            issue_type=issue_type,
+            labels=labels,
         )
-        attachments.append(
-            {
-                "filename": render_name,
-                "mime_type": "application/pdf"
-                if settings.html_render_format == "pdf"
-                else "image/png",
-                "data_bytes": render_bytes,
-                "is_inline": False,
-                "content_id": None,
-            }
-        )
-        adf = prepend_note(
-            adf, f"Full-fidelity email rendering attached: {render_name}"
-        )
 
-    sanitized_msg_id = sanitize_msg_id(msg.get("message_id", "") or "")
-    labels = build_labels(sanitized_msg_id)
-
-    key = jira_client.create_ticket(
-        msg.get("subject", "(No Subject)"),
-        adf,
-        client,
-        issue_type=issue_type,
-        labels=labels,
-    )
-
-    if key:
-        results = jira_client.upload_attachments(key, attachments)
-        if results:
-            new_adf = jira_client.build_adf_with_attachment_list(adf, results)
-            if new_adf != adf:
-                jira_client.update_issue_description(key, new_adf)
-        firestore_state.mark_processed(message_id)
-    else:
-        logger.error(
-            "Failed to create Jira ticket for message %s; response: %s",
-            message_id,
-            key,
-        )
+        if key:
+            results = jira_client.upload_attachments(key, attachments)
+            if results:
+                new_adf = jira_client.build_adf_with_attachment_list(adf, results)
+                if new_adf != adf:
+                    jira_client.update_issue_description(key, new_adf)
+            firestore_state.mark_processed(message_id)
+        else:
+            logger.error(
+                "Failed to create Jira ticket for message %s; response: %s",
+                message_id,
+                key,
+            )
+            firestore_state.unclaim_message(message_id)
+    except Exception:
+        firestore_state.unclaim_message(message_id)
+        raise
 
 
 @app.post("/pubsub")

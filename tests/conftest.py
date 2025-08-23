@@ -7,6 +7,7 @@ from types import SimpleNamespace
 
 import pytest
 from google.cloud import firestore as firestore_mod
+from google.api_core import exceptions as gcloud_exceptions
 
 # Ensure the repository root is on the import path so application modules can
 # be imported when tests run from the `tests/` directory.
@@ -27,6 +28,14 @@ class FakeDocument:
 
     def set(self, data):
         self.store[self.path] = data
+
+    def create(self, data):
+        if self.path in self.store:
+            raise gcloud_exceptions.AlreadyExists("Document already exists")
+        self.store[self.path] = data
+
+    def delete(self):
+        self.store.pop(self.path, None)
 
     def collection(self, name):
         return FakeCollection(self.store, f"{self.path}/{name}")
