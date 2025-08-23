@@ -6,8 +6,8 @@ import sys
 from types import SimpleNamespace
 
 import pytest
-from google.cloud import firestore as firestore_mod
 from google.api_core import exceptions as gcloud_exceptions
+from google.cloud import firestore as firestore_mod
 
 # Ensure the repository root is on the import path so application modules can
 # be imported when tests run from the `tests/` directory.

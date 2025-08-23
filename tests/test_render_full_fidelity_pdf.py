@@ -22,7 +22,7 @@ def test_render_full_fidelity_pdf_unit():
 
 
 def test_render_pdf_handles_unicode():
-    html = "<p>Unicode\u202ftext – 😊</p>"
+    html = "<p>Unicode\u202ftext - 😊</p>"
     pdf_bytes, name = render_html(html, [], "pdf")
     assert name.endswith(".pdf")
     assert pdf_bytes.startswith(b"%PDF-")

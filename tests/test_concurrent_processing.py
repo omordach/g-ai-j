@@ -1,5 +1,6 @@
 import threading
 
+
 def test_concurrent_processing_creates_single_ticket(app_setup, monkeypatch):
     app = app_setup["app"]
     jira_client = app_setup["jira_client"]

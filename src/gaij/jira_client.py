@@ -65,7 +65,7 @@ def _attachment_skip_reason(
     mime: str,
     allowed: set[str],
     max_bytes: int,
-) -> Optional[str]:
+) -> str | None:
     """Return a skip status if the attachment should not be uploaded."""
     if att.get("is_inline") and not settings.attach_inline_images:
         logger.info("Skipping inline attachment %s", name)
@@ -79,7 +79,7 @@ def _attachment_skip_reason(
     return None
 
 
-def _extract_attachment_id(resp: requests.Response) -> Optional[str]:
+def _extract_attachment_id(resp: requests.Response) -> str | None:
     """Best-effort extraction of the attachment ID from the response."""
     try:
         data = resp.json()
@@ -98,7 +98,7 @@ def _upload_one_attachment(
     allowed: set[str],
     max_bytes: int,
     issue_key: str,
-) -> tuple[str, str, Optional[str]]:
+) -> tuple[str, str, str | None]:
     """Return ``(filename, status, attachment_id)`` after attempting upload."""
     name = att.get("filename", "attachment")
     data = att.get("data_bytes", b"")
