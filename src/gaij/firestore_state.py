@@ -30,6 +30,10 @@ def _processed_doc() -> Any:
     return _get_collection().document("processed")
 
 
+def _lock_doc(message_id: str) -> Any:
+    return _get_collection().document("locks").collection("messages").document(message_id)
+
+
 def _runtime_doc() -> Any:
     return _get_collection().document("runtime")
 
@@ -58,6 +62,26 @@ def set_last_history_id(value: int) -> None:
         _runtime_doc().set({"last_history_id": int(value)})
     except exceptions.GoogleAPICallError as exc:
         logger.error("Failed to set last_history_id: %s", exc)
+
+
+def claim_message(message_id: str) -> bool:
+    if is_processed(message_id):
+        return False
+    try:
+        _lock_doc(message_id).create({"claimed": True})
+        return True
+    except exceptions.AlreadyExists:
+        return False
+    except exceptions.GoogleAPICallError as exc:
+        logger.error("Failed to claim message: %s", exc)
+        return False
+
+
+def unclaim_message(message_id: str) -> None:
+    try:
+        _lock_doc(message_id).delete()
+    except exceptions.GoogleAPICallError as exc:
+        logger.error("Failed to unclaim message: %s", exc)
 
 
 def is_processed(message_id: str) -> bool:
