@@ -58,6 +58,38 @@ def create_jira_ticket(*args: Any, **kwargs: Any) -> str | None:
     return create_ticket(*args, **kwargs)
 
 
+def _attachment_skip_reason(
+    att: dict[str, Any],
+    name: str,
+    data: bytes,
+    mime: str,
+    allowed: set[str],
+    max_bytes: int,
+) -> Optional[str]:
+    """Return a skip status if the attachment should not be uploaded."""
+    if att.get("is_inline") and not settings.attach_inline_images:
+        logger.info("Skipping inline attachment %s", name)
+        return "skipped inline"
+    if len(data) > max_bytes:
+        logger.warning("Skipping oversize attachment %s", name)
+        return "oversize"
+    if allowed and mime not in allowed:
+        logger.warning("Skipping disallowed attachment %s", name)
+        return "disallowed"
+    return None
+
+
+def _extract_attachment_id(resp: requests.Response) -> Optional[str]:
+    """Best-effort extraction of the attachment ID from the response."""
+    try:
+        data = resp.json()
+        if isinstance(data, list) and data:
+            return str(data[0].get("id"))
+    except Exception:  # pragma: no cover - best effort
+        return None
+    return None
+
+
 def _upload_one_attachment(
     att: dict[str, Any],
     url: str,
@@ -66,21 +98,15 @@ def _upload_one_attachment(
     allowed: set[str],
     max_bytes: int,
     issue_key: str,
-    ) -> tuple[str, str, Optional[str]]:
+) -> tuple[str, str, Optional[str]]:
     """Return ``(filename, status, attachment_id)`` after attempting upload."""
     name = att.get("filename", "attachment")
     data = att.get("data_bytes", b"")
     mime = att.get("mime_type", "application/octet-stream")
 
-    if att.get("is_inline") and not settings.attach_inline_images:
-        logger.info("Skipping inline attachment %s", name)
-        return name, "skipped inline", None
-    if len(data) > max_bytes:
-        logger.warning("Skipping oversize attachment %s", name)
-        return name, "oversize", None
-    if allowed and mime not in allowed:
-        logger.warning("Skipping disallowed attachment %s", name)
-        return name, "disallowed", None
+    skip_reason = _attachment_skip_reason(att, name, data, mime, allowed, max_bytes)
+    if skip_reason:
+        return name, skip_reason, None
 
     files = {"file": (name, data, mime)}
     try:
@@ -90,13 +116,7 @@ def _upload_one_attachment(
         return name, "error", None
 
     if resp.status_code in (200, 201):
-        attach_id: Optional[str] = None
-        try:
-            data = resp.json()
-            if isinstance(data, list) and data:
-                attach_id = str(data[0].get("id"))
-        except Exception:  # pragma: no cover - best effort
-            attach_id = None
+        attach_id = _extract_attachment_id(resp)
         logger.info("Uploaded attachment %s to %s", name, issue_key)
         return name, "uploaded", attach_id
     logger.error(
