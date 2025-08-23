@@ -145,7 +145,8 @@
           TYPE_FLAG=$(gcloud firestore databases create --help | grep -q -- '--database-type' && echo '--database-type' || echo '--type')
           LOC_FLAG=$(gcloud firestore databases create --help | grep -q -- '--location-id' && echo '--location-id' || echo '--location')
           gcloud firestore databases create --project {{ project_id }} \
-            "$LOC_FLAG={{ firestore_location_id }}" "$TYPE_FLAG={{ firestore_type }}"
+            "$LOC_FLAG={{ firestore_location_id }}" "$TYPE_FLAG={{ firestore_type }}" \
+            || gcloud firestore databases describe "(default)" --project {{ project_id }} >/dev/null 2>&1
         }
       changed_when: false
 
