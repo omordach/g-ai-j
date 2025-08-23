@@ -49,3 +49,34 @@ def test_renew_watch_if_expiring(monkeypatch, firestore_state_module):
 
     gmail_watch.renew_watch_if_needed()
     assert called["registered"] is True
+
+
+def test_renew_watch_if_no_existing(monkeypatch, firestore_state_module):
+    import importlib
+
+    import gaij.gmail_watch as gmail_watch
+    import gaij.settings as settings
+    importlib.reload(settings)
+    importlib.reload(gmail_watch)
+
+    called = {"registered": False}
+    monkeypatch.setattr(gmail_watch, "register_watch", lambda: called.__setitem__("registered", True))
+    monkeypatch.setattr(gmail_watch.firestore_state, "get_watch", lambda: None)
+    gmail_watch.renew_watch_if_needed()
+    assert called["registered"] is True
+
+
+def test_renew_watch_if_still_valid(monkeypatch, firestore_state_module):
+    import importlib
+
+    import gaij.gmail_watch as gmail_watch
+    import gaij.settings as settings
+    importlib.reload(settings)
+    importlib.reload(gmail_watch)
+
+    called = {"registered": False}
+    monkeypatch.setattr(gmail_watch, "register_watch", lambda: called.__setitem__("registered", True))
+    future = int((time.time() + 48 * 3600) * 1000)
+    monkeypatch.setattr(gmail_watch.firestore_state, "get_watch", lambda: {"expiration": future})
+    gmail_watch.renew_watch_if_needed()
+    assert called["registered"] is False
