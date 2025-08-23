@@ -43,29 +43,29 @@ jobs:
       - name: Pytest
         run: pytest -q --cov=gaij --cov-fail-under=88
 
-  deploy:
-    needs: test
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      id-token: write
-    steps:
-      - uses: actions/checkout@v4
+  # deploy:
+  #   needs: test
+  #   if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+  #   runs-on: ubuntu-latest
+  #   permissions:
+  #     contents: read
+  #     id-token: write
+  #   steps:
+  #     - uses: actions/checkout@v4
 
-      - name: Auth to Google Cloud
-        uses: google-github-actions/auth@v2
-        with:
-          credentials_json: ${{ secrets.GCP_SA_KEY }}
+  #     - name: Auth to Google Cloud
+  #       uses: google-github-actions/auth@v2
+  #       with:
+  #         credentials_json: ${{ secrets.GCP_SA_KEY }}
 
-      - name: Deploy to Cloud Run (build from source)
-        uses: google-github-actions/deploy-cloudrun@v2
-        with:
-          service:    ${{ secrets.CLOUD_RUN_SERVICE }}    # e.g. g-ai-j
-          region:     ${{ secrets.GCP_REGION }}           # e.g. europe-central2
-          project_id: ${{ secrets.GCP_PROJECT_ID }}       # e.g. gmail-ai-jira
-          source: .
-          flags: >
-            --service-account=${{ secrets.RUNTIME_SA }}
-            --build-service-account=${{ secrets.BUILD_SA }}
-            --allow-unauthenticated
+  #     - name: Deploy to Cloud Run (build from source)
+  #       uses: google-github-actions/deploy-cloudrun@v2
+  #       with:
+  #         service:    ${{ secrets.CLOUD_RUN_SERVICE }}    # e.g. g-ai-j
+  #         region:     ${{ secrets.GCP_REGION }}           # e.g. europe-central2
+  #         project_id: ${{ secrets.GCP_PROJECT_ID }}       # e.g. gmail-ai-jira
+  #         source: .
+  #         flags: >
+  #           --service-account=${{ secrets.RUNTIME_SA }}
+  #           --build-service-account=${{ secrets.BUILD_SA }}
+  #           --allow-unauthenticated
