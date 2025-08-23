@@ -33,6 +33,42 @@ MARK_TAGS: dict[str, dict[str, Any]] = {
 }
 
 
+def _style_marks(style_attr: Any) -> list[dict[str, Any]]:
+    """Return Jira marks derived from a style attribute."""
+    if not isinstance(style_attr, str):
+        return []
+    style = style_attr.lower()
+    marks: list[dict[str, Any]] = []
+    if "font-weight" in style and "bold" in style:
+        marks.append({"type": "strong"})
+    if "font-style" in style and "italic" in style:
+        marks.append({"type": "em"})
+    if "text-decoration" in style and "underline" in style:
+        marks.append({"type": "underline"})
+    return marks
+
+
+def _convert_tag(
+    node: Tag, inline_map: dict[str, str], marks: list[dict[str, Any]]
+) -> list[dict[str, Any]]:
+    name = node.name.lower()
+    if name == "br":
+        return [{"type": "hardBreak"}]
+
+    new_marks = marks + ([MARK_TAGS[name]] if name in MARK_TAGS else [])
+    new_marks.extend(_style_marks(node.get("style")))
+
+    if name == "a":
+        href_attr = node.get("href")
+        href = href_attr if isinstance(href_attr, str) else ""
+        new_marks.append({"type": "link", "attrs": {"href": href}})
+
+    result: list[dict[str, Any]] = []
+    for child in node.children:
+        result.extend(_convert_inline(child, inline_map, new_marks))
+    return result
+
+
 def _convert_inline(
     node: Any, inline_map: dict[str, str], marks: list[dict[str, Any]] | None = None
 ) -> list[dict[str, Any]]:
@@ -41,36 +77,8 @@ def _convert_inline(
     if isinstance(node, NavigableString):
         text = _replace_placeholders(str(node), inline_map)
         return [_text_node(text, marks or None)] if text.strip() else []
-
     if isinstance(node, Tag):
-        name = node.name.lower()
-        if name == "br":
-            # Represent <br> as a hard break within the paragraph.
-            return [{"type": "hardBreak"}]
-
-        new_marks = marks + ([MARK_TAGS[name]] if name in MARK_TAGS else [])
-
-        # Support basic inline styles such as <span style="font-weight:bold">.
-        style_attr = node.get("style", "")
-        if isinstance(style_attr, str):
-            style = style_attr.lower()
-            if "font-weight" in style and "bold" in style:
-                new_marks.append({"type": "strong"})
-            if "font-style" in style and "italic" in style:
-                new_marks.append({"type": "em"})
-            if "text-decoration" in style and "underline" in style:
-                new_marks.append({"type": "underline"})
-
-        if name == "a":
-            href_attr = node.get("href")
-            href = href_attr if isinstance(href_attr, str) else ""
-            new_marks.append({"type": "link", "attrs": {"href": href}})
-
-        result: list[dict[str, Any]] = []
-        for child in node.children:
-            result.extend(_convert_inline(child, inline_map, new_marks))
-        return result
-
+        return _convert_tag(node, inline_map, marks)
     return []
 
 
