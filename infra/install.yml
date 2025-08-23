@@ -153,23 +153,26 @@
           --project {{ project_id }} || true
       changed_when: false
 
-    - name: Create/Update Secret Manager secrets from .env keys (only when values present)
+    - name: Ensure secret exists for each env key (when value present)
       vars:
         val: "{{ env_kv[item] | default('') }}"
       loop: "{{ secret_keys }}"
       when: val | length > 0
-      block:
-        - name: Ensure secret exists
-          shell: >
-            gcloud secrets describe {{ item }} --project {{ project_id }} ||
-            gcloud secrets create {{ item }} --replication-policy="automatic"
-          changed_when: false
-        - name: Add new secret version
-          shell: |
-            tmp=$(mktemp)
-            printf "%s" "{{ val | replace('\\n','\n') }}" > "$tmp"
-            gcloud secrets versions add {{ item }} --data-file="$tmp" --project {{ project_id }}
-          changed_when: true
+      shell: >
+        gcloud secrets describe {{ item }} --project {{ project_id }} ||
+        gcloud secrets create {{ item }} --replication-policy="automatic"
+      changed_when: false
+
+    - name: Add new secret version for each env key (when value present)
+      vars:
+        val: "{{ env_kv[item] | default('') }}"
+      loop: "{{ secret_keys }}"
+      when: val | length > 0
+      shell: |
+        tmp=$(mktemp)
+        printf "%s" "{{ val | replace('\\n','\n') }}" > "$tmp"
+        gcloud secrets versions add {{ item }} --data-file="$tmp" --project {{ project_id }}
+      changed_when: true
 
     - name: Grant runtime SA access to all secrets
       shell: |
