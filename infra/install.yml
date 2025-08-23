@@ -16,7 +16,7 @@
 
     # Firestore settings
     firestore_location_id: "eur3"          # multi-region in EU (good for Warsaw)
-    firestore_type: "FIRESTORE_NATIVE"
+    firestore_type: "firestore-native"
 
     # Required Google APIs
     gcp_services:
@@ -140,9 +140,11 @@
 
     - name: Ensure Firestore database exists (Native)
       shell: |
-        gcloud firestore databases describe "(default)" --project {{ project_id }} >/dev/null 2>&1 || \
-        gcloud firestore databases create --project {{ project_id }} \
-          --location-id={{ firestore_location_id }} --type={{ firestore_type }}
+        gcloud firestore databases describe "(default)" --project {{ project_id }} >/dev/null 2>&1 || {
+          FLAG=$(gcloud firestore databases create --help | grep -q -- '--database-type' && echo '--database-type' || echo '--type')
+          gcloud firestore databases create --project {{ project_id }} \
+            --location-id={{ firestore_location_id }} "$FLAG={{ firestore_type }}"
+        }
       changed_when: false
 
     - name: Allow Gmail to publish to Pub/Sub topic (topic may be created below)
