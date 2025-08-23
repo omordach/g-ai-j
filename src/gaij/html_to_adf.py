@@ -44,11 +44,28 @@ def _convert_inline(
 
     if isinstance(node, Tag):
         name = node.name.lower()
+        if name == "br":
+            # Represent <br> as a hard break within the paragraph.
+            return [{"type": "hardBreak"}]
+
         new_marks = marks + ([MARK_TAGS[name]] if name in MARK_TAGS else [])
+
+        # Support basic inline styles such as <span style="font-weight:bold">.
+        style_attr = node.get("style", "")
+        if isinstance(style_attr, str):
+            style = style_attr.lower()
+            if "font-weight" in style and "bold" in style:
+                new_marks.append({"type": "strong"})
+            if "font-style" in style and "italic" in style:
+                new_marks.append({"type": "em"})
+            if "text-decoration" in style and "underline" in style:
+                new_marks.append({"type": "underline"})
+
         if name == "a":
             href_attr = node.get("href")
             href = href_attr if isinstance(href_attr, str) else ""
             new_marks.append({"type": "link", "attrs": {"href": href}})
+
         result: list[dict[str, Any]] = []
         for child in node.children:
             result.extend(_convert_inline(child, inline_map, new_marks))

@@ -76,6 +76,9 @@ def render_html(
 
     # Convert HTML to plain text for the minimal PDF representation.
     soup = BeautifulSoup(html, "html.parser")
+    # Preserve explicit line breaks to keep e-mail formatting readable.
+    for br in soup.find_all("br"):
+        br.replace_with("\n")
     text = soup.get_text(separator="\n")
     pdf_bytes = _simple_pdf_bytes(text)
     filename = "email-render.pdf"
