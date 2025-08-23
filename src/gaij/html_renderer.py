@@ -1,4 +1,4 @@
-"""Utilities to render e‑mail HTML into shareable artifacts."""
+"""Utilities to render e-mail HTML into shareable artifacts."""
 
 from __future__ import annotations
 
@@ -13,7 +13,7 @@ def _simple_pdf_bytes(text: str) -> bytes:
 
     The implementation avoids external dependencies so it can run in the
     constrained execution environment used for tests.  The generated PDF uses
-    a single page with the built‑in Helvetica font.
+    a single page with the built-in Helvetica font.
     """
 
     # Escape characters that have a special meaning in PDF text objects.
@@ -49,12 +49,12 @@ def _simple_pdf_bytes(text: str) -> bytes:
 def render_html(
     html: str, inline_parts: list[dict[str, Any]], fmt: str = "pdf"
 ) -> tuple[bytes, str]:
-    """Render HTML e‑mail to PDF/PNG bytes embedding inline images.
+    """Render HTML e-mail to PDF/PNG bytes embedding inline images.
 
     ``fmt`` currently supports ``"pdf"`` and ``"png"`` (the latter remains a
     lightweight placeholder).  Inline images referenced via ``cid:`` URLs are
     replaced with base64 ``data:`` URIs so that the rendered output is
-    self‑contained.
+    self-contained.
     """
 
     for part in inline_parts:
