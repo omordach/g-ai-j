@@ -21,6 +21,14 @@ def test_render_full_fidelity_pdf_unit():
     assert pdf_bytes.strip().endswith(b"%%EOF")
 
 
+def test_render_pdf_handles_unicode():
+    html = "<p>Unicode\u202ftext – 😊</p>"
+    pdf_bytes, name = render_html(html, [], "pdf")
+    assert name.endswith(".pdf")
+    assert pdf_bytes.startswith(b"%PDF-")
+    assert pdf_bytes.strip().endswith(b"%%EOF")
+
+
 def test_render_full_fidelity_pdf_integration(app_setup, monkeypatch):
     app = app_setup["app"]
     gmail_client = app_setup["gmail_client"]

@@ -35,14 +35,20 @@ def _simple_pdf_bytes(text: str) -> bytes:
     offsets = [0]
     for i, obj in enumerate(objects, start=1):
         offsets.append(len(pdf))
-        pdf.extend(f"{i} 0 obj\n{obj}\nendobj\n".encode("latin-1"))
+        pdf.extend(f"{i} 0 obj\n{obj}\nendobj\n".encode("latin-1", "replace"))
     xref = len(pdf)
-    pdf.extend(f"xref\n0 {len(objects)+1}\n0000000000 65535 f \n".encode("latin-1"))
+    pdf.extend(
+        f"xref\n0 {len(objects)+1}\n0000000000 65535 f \n".encode(
+            "latin-1", "replace"
+        )
+    )
     for off in offsets[1:]:
-        pdf.extend(f"{off:010d} 00000 n \n".encode("latin-1"))
+        pdf.extend(f"{off:010d} 00000 n \n".encode("latin-1", "replace"))
     pdf.extend(b"trailer\n")
-    pdf.extend(f"<< /Size {len(objects)+1} /Root 1 0 R >>\n".encode("latin-1"))
-    pdf.extend(f"startxref\n{xref}\n%%EOF".encode("latin-1"))
+    pdf.extend(
+        f"<< /Size {len(objects)+1} /Root 1 0 R >>\n".encode("latin-1", "replace")
+    )
+    pdf.extend(f"startxref\n{xref}\n%%EOF".encode("latin-1", "replace"))
     return bytes(pdf)
 
 
