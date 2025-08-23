@@ -101,8 +101,8 @@ def _normalize_filename(name: str, index: int, mime_type: str) -> str:
     return name
 
 
-def extract_attachments(message_json: dict[str, Any]) -> list[dict[str, Any]]:
-    """Extract attachments including inline images from a Gmail message."""
+def _collect_all_parts(message_json: dict[str, Any]) -> tuple[str, list[dict[str, Any]]]:
+    """Return the HTML body and all attachment parts."""
     payload = message_json.get("payload", {})
     html_body = _extract_html(payload)
     cid_refs: set[str] = set()
@@ -114,10 +114,8 @@ def extract_attachments(message_json: dict[str, Any]) -> list[dict[str, Any]]:
                 cid_refs.add(src_attr[4:])
 
     attachments: list[dict[str, Any]] = []
-    service = None
 
     def walk(part: dict[str, Any]) -> None:
-        nonlocal service
         mime_type = part.get("mimeType", "application/octet-stream")
         filename = part.get("filename", "")
         body = part.get("body", {})
@@ -125,43 +123,17 @@ def extract_attachments(message_json: dict[str, Any]) -> list[dict[str, Any]]:
         headers = {h.get("name", "").lower(): h.get("value", "") for h in part.get("headers", [])}
         if attachment_id or filename:
             if attachment_id:
-                if service is None:
-                    service = get_gmail_service()
-                try:
-                    resp = (
-                        service.users()
-                        .messages()
-                        .attachments()
-                        .get(
-                            userId=settings.gmail_user_id,
-                            messageId=message_json.get("id", ""),
-                            id=attachment_id,
-                        )
-                        .execute()
-                    )
-                    data = resp.get("data")
-                    data_bytes = (
-                        base64.urlsafe_b64decode(data) if data else b""
-                    )
-                except HttpError as err:
-                    logger.error("Gmail API error fetching attachment %s: %s", attachment_id, err)
-                    data_bytes = b""
-                except Exception as err:  # pragma: no cover - defensive
-                    logger.error("Unexpected error fetching attachment %s: %s", attachment_id, err)
-                    data_bytes = b""
+                data_bytes = download_attachment(message_json.get("id", ""), attachment_id)
             else:
                 data = body.get("data")
-                data_bytes = (
-                    base64.urlsafe_b64decode(data) if data else b""
-                )
+                data_bytes = base64.urlsafe_b64decode(data) if data else b""
 
             cid = headers.get("content-id")
             if cid:
                 cid = cid.strip("<>")
             content_disp = headers.get("content-disposition", "")
             is_inline = bool(
-                (cid and cid in cid_refs)
-                or ("inline" in content_disp.lower())
+                (cid and cid in cid_refs) or ("inline" in content_disp.lower())
             )
 
             norm_name = _normalize_filename(filename, len(attachments), mime_type)
@@ -179,7 +151,48 @@ def extract_attachments(message_json: dict[str, Any]) -> list[dict[str, Any]]:
             walk(sub)
 
     walk(payload)
-    return attachments
+    return html_body or "", attachments
+
+
+def download_attachment(message_id: str, attachment_id: str) -> bytes:
+    """Download a single attachment's bytes from Gmail."""
+    service = get_gmail_service()
+    try:
+        resp = (
+            service.users()
+            .messages()
+            .attachments()
+            .get(
+                userId=settings.gmail_user_id,
+                messageId=message_id,
+                id=attachment_id,
+            )
+            .execute()
+        )
+        data = resp.get("data")
+        return base64.urlsafe_b64decode(data) if data else b""
+    except HttpError as err:
+        logger.error("Gmail API error fetching attachment %s: %s", attachment_id, err)
+    except Exception as err:  # pragma: no cover - defensive
+        logger.error("Unexpected error fetching attachment %s: %s", attachment_id, err)
+    return b""
+
+
+def extract_html_and_inline_parts(message_json: dict[str, Any]) -> tuple[str, list[dict[str, Any]]]:
+    """Return HTML body with placeholders and inline parts."""
+    html, attachments = _collect_all_parts(message_json)
+    inline_parts = [a for a in attachments if a["is_inline"]]
+    for part in inline_parts:
+        cid = part.get("content_id")
+        if cid:
+            html = html.replace(f"cid:{cid}", f"__INLINE_IMAGE__[{cid}]__")
+    return html, inline_parts
+
+
+def extract_attachments(message_json: dict[str, Any]) -> list[dict[str, Any]]:
+    """Return non-inline attachments from a Gmail message."""
+    _, attachments = _collect_all_parts(message_json)
+    return [a for a in attachments if not a["is_inline"]]
 
 
 def list_new_message_ids_since(
@@ -258,7 +271,15 @@ def get_message(message_id: str, format: str = "full") -> dict[str, Any]:
     payload = msg.get("payload", {})
     headers = extract_headers(payload.get("headers", []))
     body_text = extract_body(payload)
-    attachments = extract_attachments(msg)
+    html_body, all_parts = _collect_all_parts(msg)
+    inline_parts = [a for a in all_parts if a["is_inline"]]
+    attachments = [a for a in all_parts if not a["is_inline"]]
+    all_attachments = attachments + inline_parts
+    inline_map = {
+        part["content_id"]: part["filename"]
+        for part in inline_parts
+        if part.get("content_id")
+    }
 
     return {
         "from": headers.get("From", ""),
@@ -266,7 +287,10 @@ def get_message(message_id: str, format: str = "full") -> dict[str, Any]:
         "date": headers.get("Date", ""),
         "message_id": headers.get("Message-ID", ""),
         "body_text": body_text,
-        "attachments": attachments,
+        "body_html": html_body,
+        "attachments": all_attachments,
+        "inline_map": inline_map,
+        "inline_parts": inline_parts,
     }
 
 

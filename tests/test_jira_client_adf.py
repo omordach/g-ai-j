@@ -1,3 +1,5 @@
+from types import SimpleNamespace
+
 
 def test_build_adf(app_setup):
     jira_client = app_setup["jira_client"]
@@ -9,7 +11,7 @@ def test_build_adf(app_setup):
 
 def test_create_ticket_payload(monkeypatch, app_setup):
     jira_client = app_setup["jira_client"]
-    captured = {}
+    captured: dict[str, object] = {}
 
     def fake_post(url, auth=None, headers=None, json=None, timeout=None):
         captured["url"] = url
@@ -28,6 +30,6 @@ def test_create_ticket_payload(monkeypatch, app_setup):
         labels=["Billable", "email_msgid_abc"],
     )
     assert key == "ABC-1"
-    fields = captured["json"]["fields"]
+    fields = captured["json"]["fields"]  # type: ignore[index]
     assert fields[jira_client.CLIENT_FIELD_ID] == [{"value": "OETraining"}]
     assert "email_msgid_abc" in fields["labels"]

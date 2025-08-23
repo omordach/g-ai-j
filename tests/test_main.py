@@ -27,7 +27,7 @@ def import_main(monkeypatch):
 def test_main_creates_ticket(monkeypatch):
     setup_env(monkeypatch)
     main = import_main(monkeypatch)
-    called = {}
+    called: dict[str, object] = {}
 
     monkeypatch.setattr(
         main,
