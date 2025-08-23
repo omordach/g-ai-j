@@ -16,22 +16,38 @@ def require_env(var_name: str) -> str:
 
 def _load_domain_to_client_json() -> dict[str, str]:
     try:
-        return json.loads(os.getenv("DOMAIN_TO_CLIENT_JSON", "{}"))
+        raw = json.loads(os.getenv("DOMAIN_TO_CLIENT_JSON", "{}"))
     except json.JSONDecodeError:
         logger.error(
             "Failed to decode DOMAIN_TO_CLIENT_JSON; defaulting to empty dict"
         )
         return {}
 
+    if isinstance(raw, dict):
+        return {str(k): str(v) for k, v in raw.items()}
+
+    logger.error(
+        "DOMAIN_TO_CLIENT_JSON is not a JSON object; defaulting to empty dict"
+    )
+    return {}
+
 
 def _load_allowed_senders_json() -> list[str]:
     try:
-        return json.loads(os.getenv("ALLOWED_SENDERS_JSON", "[]"))
+        raw = json.loads(os.getenv("ALLOWED_SENDERS_JSON", "[]"))
     except json.JSONDecodeError:
         logger.error(
             "Failed to decode ALLOWED_SENDERS_JSON; defaulting to empty list"
         )
         return []
+
+    if isinstance(raw, list):
+        return [str(item) for item in raw]
+
+    logger.error(
+        "ALLOWED_SENDERS_JSON is not a JSON array; defaulting to empty list"
+    )
+    return []
 
 
 @dataclass
