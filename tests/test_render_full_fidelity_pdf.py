@@ -16,7 +16,9 @@ def test_render_full_fidelity_pdf_unit():
     ]
     pdf_bytes, name = render_html(html, inline_parts, "pdf")
     assert name.endswith(".pdf")
-    assert pdf_bytes.startswith(b"%PDF-FAKE")
+    # Real PDFs must start with the "%PDF-" header and terminate with "%%EOF".
+    assert pdf_bytes.startswith(b"%PDF-")
+    assert pdf_bytes.strip().endswith(b"%%EOF")
 
 
 def test_render_full_fidelity_pdf_integration(app_setup, monkeypatch):
