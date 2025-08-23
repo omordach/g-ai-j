@@ -69,7 +69,19 @@ def _handle_heading(elem: Tag, inline_map: dict[str, str]) -> list[dict[str, Any
 
 
 def _handle_paragraph(elem: Tag, inline_map: dict[str, str]) -> list[dict[str, Any]]:
-    return [{"type": "paragraph", "content": _convert_inline(elem, inline_map)}]
+    blocks: list[dict[str, Any]] = []
+    inline_content: list[dict[str, Any]] = []
+    for child in elem.children:
+        if isinstance(child, Tag) and child.name.lower() == "img":
+            if inline_content:
+                blocks.append({"type": "paragraph", "content": inline_content})
+                inline_content = []
+            blocks.extend(_handle_img(child, inline_map))
+        else:
+            inline_content.extend(_convert_inline(child, inline_map))
+    if inline_content or not blocks:
+        blocks.append({"type": "paragraph", "content": inline_content})
+    return blocks
 
 
 def _handle_list(elem: Tag, inline_map: dict[str, str]) -> list[dict[str, Any]]:
@@ -87,7 +99,24 @@ def _handle_img(elem: Tag, inline_map: dict[str, str]) -> list[dict[str, Any]]:
     m = PLACEHOLDER_RE.search(src)
     if m:
         cid = m.group(1)
-        filename = inline_map.get(cid, cid)
+        ref = inline_map.get(cid)
+        if ref and ref.isdigit():
+            return [
+                {
+                    "type": "mediaSingle",
+                    "content": [
+                        {
+                            "type": "media",
+                            "attrs": {
+                                "id": ref,
+                                "type": "file",
+                                "collection": "jira-issue",
+                            },
+                        }
+                    ],
+                }
+            ]
+        filename = ref or cid
         return [
             {
                 "type": "paragraph",

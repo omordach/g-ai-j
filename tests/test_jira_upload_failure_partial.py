@@ -49,6 +49,8 @@ def test_jira_upload_failure_partial(app_setup, monkeypatch):
         class R:
             text = ""
             status_code = 200 if name == "good.pdf" else 400
+            def json(self):
+                return [{"id": "1"}]
         return R()
 
     monkeypatch.setattr(jira_client.requests, "post", fake_post)

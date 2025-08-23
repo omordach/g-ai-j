@@ -33,3 +33,10 @@ def test_inline_images_cid_mapping(app_setup):
     adf = build_adf_from_html(html, inline_map)
     text_nodes = [n.get("text") for p in adf["content"] for n in p.get("content", [])]
     assert any(t and t.startswith("[inline image: photo.png]") for t in text_nodes)
+
+
+def test_inline_images_render_with_ids():
+    html = "<html><body><img src='__INLINE_IMAGE__[abc]__'></body></html>"
+    adf = build_adf_from_html(html, {"abc": "123"})
+    media_nodes = [n for n in adf["content"] if n.get("type") == "mediaSingle"]
+    assert media_nodes[0]["content"][0]["attrs"]["id"] == "123"

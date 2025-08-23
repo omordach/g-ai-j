@@ -129,6 +129,7 @@ def process_message(message_id: str) -> None:
         attachments = list(msg.get("attachments", []))
         inline_parts = msg.get("inline_parts", [])
 
+        note: str | None = None
         if settings.preserve_html_render:
             render_bytes, render_name = render_html(
                 html, inline_parts, settings.html_render_format
@@ -144,9 +145,8 @@ def process_message(message_id: str) -> None:
                     "content_id": None,
                 }
             )
-            adf = prepend_note(
-                adf, f"Full-fidelity email rendering attached: {render_name}"
-            )
+            note = f"Full-fidelity email rendering attached: {render_name}"
+            adf = prepend_note(adf, note)
 
         sanitized_msg_id = sanitize_msg_id(msg.get("message_id", "") or "")
         labels = build_labels(sanitized_msg_id)
@@ -160,11 +160,14 @@ def process_message(message_id: str) -> None:
         )
 
         if key:
-            results = jira_client.upload_attachments(key, attachments)
-            if results:
-                new_adf = jira_client.build_adf_with_attachment_list(adf, results)
-                if new_adf != adf:
-                    jira_client.update_issue_description(key, new_adf)
+            results, id_map = jira_client.upload_attachments(key, attachments)
+            merged_map = {**inline_map, **id_map}
+            final_adf = build_adf_from_html(html, merged_map)
+            if note:
+                final_adf = prepend_note(final_adf, note)
+            final_adf = jira_client.build_adf_with_attachment_list(final_adf, results)
+            if final_adf != adf:
+                jira_client.update_issue_description(key, final_adf)
             firestore_state.mark_processed(message_id)
         else:
             logger.error(

@@ -58,6 +58,38 @@ def create_jira_ticket(*args: Any, **kwargs: Any) -> str | None:
     return create_ticket(*args, **kwargs)
 
 
+def _attachment_skip_reason(
+    att: dict[str, Any],
+    name: str,
+    data: bytes,
+    mime: str,
+    allowed: set[str],
+    max_bytes: int,
+) -> Optional[str]:
+    """Return a skip status if the attachment should not be uploaded."""
+    if att.get("is_inline") and not settings.attach_inline_images:
+        logger.info("Skipping inline attachment %s", name)
+        return "skipped inline"
+    if len(data) > max_bytes:
+        logger.warning("Skipping oversize attachment %s", name)
+        return "oversize"
+    if allowed and mime not in allowed:
+        logger.warning("Skipping disallowed attachment %s", name)
+        return "disallowed"
+    return None
+
+
+def _extract_attachment_id(resp: requests.Response) -> Optional[str]:
+    """Best-effort extraction of the attachment ID from the response."""
+    try:
+        data = resp.json()
+        if isinstance(data, list) and data:
+            return str(data[0].get("id"))
+    except Exception:  # pragma: no cover - best effort
+        return None
+    return None
+
+
 def _upload_one_attachment(
     att: dict[str, Any],
     url: str,
@@ -66,43 +98,41 @@ def _upload_one_attachment(
     allowed: set[str],
     max_bytes: int,
     issue_key: str,
-) -> tuple[str, str]:
-    """Return (filename, status) after attempting a single upload."""
+) -> tuple[str, str, Optional[str]]:
+    """Return ``(filename, status, attachment_id)`` after attempting upload."""
     name = att.get("filename", "attachment")
     data = att.get("data_bytes", b"")
     mime = att.get("mime_type", "application/octet-stream")
 
-    if att.get("is_inline") and not settings.attach_inline_images:
-        logger.info("Skipping inline attachment %s", name)
-        return name, "skipped inline"
-    if len(data) > max_bytes:
-        logger.warning("Skipping oversize attachment %s", name)
-        return name, "oversize"
-    if allowed and mime not in allowed:
-        logger.warning("Skipping disallowed attachment %s", name)
-        return name, "disallowed"
+    skip_reason = _attachment_skip_reason(att, name, data, mime, allowed, max_bytes)
+    if skip_reason:
+        return name, skip_reason, None
 
     files = {"file": (name, data, mime)}
     try:
         resp = requests.post(url, auth=auth, headers=headers, files=files, timeout=10)
     except requests.RequestException as exc:
         logger.error("Error uploading attachment %s: %s", name, exc)
-        return name, "error"
+        return name, "error", None
 
     if resp.status_code in (200, 201):
+        attach_id = _extract_attachment_id(resp)
         logger.info("Uploaded attachment %s to %s", name, issue_key)
-        return name, "uploaded"
+        return name, "uploaded", attach_id
     logger.error(
         "Failed to upload attachment %s: %s %s", name, resp.status_code, resp.text
     )
-    return name, f"failed {resp.status_code}"
+    return name, f"failed {resp.status_code}", None
 
 
-def upload_attachments(issue_key: str, attachments: list[dict[str, Any]]) -> dict[str, str]:
-    """Upload attachments to a Jira issue and return per-file results."""
+def upload_attachments(
+    issue_key: str, attachments: list[dict[str, Any]]
+) -> tuple[dict[str, str], dict[str, str]]:
+    """Upload attachments and return status plus ``cid/filename → id`` map."""
     results: dict[str, str] = {}
+    id_map: dict[str, str] = {}
     if not settings.attachment_upload_enabled or not attachments:
-        return results
+        return results, id_map
 
     url = f"{settings.jira_url}/rest/api/3/issue/{issue_key}/attachments"
     auth = HTTPBasicAuth(settings.jira_user, settings.jira_api_token)
@@ -111,11 +141,14 @@ def upload_attachments(issue_key: str, attachments: list[dict[str, Any]]) -> dic
     max_bytes = settings.jira_max_attachment_bytes
 
     for att in attachments:
-        name, status = _upload_one_attachment(
+        name, status, attach_id = _upload_one_attachment(
             att, url, auth, headers, allowed, max_bytes, issue_key
         )
         results[name] = status
-    return results
+        if attach_id:
+            key = att.get("content_id") or name
+            id_map[str(key)] = attach_id
+    return results, id_map
 
 
 def build_adf_with_attachment_list(

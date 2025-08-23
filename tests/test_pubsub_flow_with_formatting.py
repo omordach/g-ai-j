@@ -13,7 +13,7 @@ def test_pubsub_flow_with_formatting(app_setup, monkeypatch, pubsub_envelope):
         "subject": "Sub",
         "message_id": "<id1>",
         "body_text": "Body",
-        "body_html": "<h1>Hi</h1><p>Body<img src='cid:abc'></p>",
+        "body_html": "<h1>Hi</h1><p>Body<img src='__INLINE_IMAGE__[abc]__'></p>",
         "inline_map": {"abc": "img.png"},
         "inline_parts": [
             {
@@ -52,10 +52,14 @@ def test_pubsub_flow_with_formatting(app_setup, monkeypatch, pubsub_envelope):
     uploaded = []
 
     def fake_post(url, auth=None, headers=None, files=None, timeout=None):
-        uploaded.append(files["file"][0])
+        name = files["file"][0]
+        uploaded.append(name)
+        idx = len(uploaded)
         class R:
             status_code = 200
             text = ""
+            def json(self):
+                return [{"id": str(idx)}]
         return R()
 
     monkeypatch.setattr(jira_client.requests, "post", fake_post)
@@ -66,6 +70,12 @@ def test_pubsub_flow_with_formatting(app_setup, monkeypatch, pubsub_envelope):
     assert resp.status_code == 204
 
     assert set(uploaded) == {"doc.pdf", "img.png", "email-render.pdf"}
+    media_ids = [
+        n["content"][0]["attrs"]["id"]
+        for n in desc["adf"]["content"]
+        if n.get("type") == "mediaSingle"
+    ]
+    assert any(mid.isdigit() for mid in media_ids)
     first_para = desc["adf"]["content"][0]["content"][0]["text"]
     assert "email-render.pdf" in first_para
     assert fs.is_processed("1")
